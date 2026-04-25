@@ -15,7 +15,7 @@
 
   1. Copy `.env.example` to `.env.local`.
   2. In Firebase Console, open `Project settings` -> `General` -> `Your apps` -> Web app config.
-  3. Paste the config for your current Firebase project `umedh-foundation-617ea`.
+  3. Paste the config for your current Firebase web app.
   4. Add the exact `VITE_FIREBASE_DATABASE_URL` from `Realtime Database` in Firebase Console.
 
   If the Realtime Database URL is missing, the app falls back to demo donation data so the UI still runs.

@@ -47,7 +47,7 @@ function ensureFirebaseAuth() {
 export function getDefaultAdminConfig(): DefaultAdminConfig | null {
   const email = (import.meta.env as any).VITE_DEFAULT_ADMIN_EMAIL?.trim();
   const password = (import.meta.env as any).VITE_DEFAULT_ADMIN_PASSWORD?.trim();
-  const name = (import.meta.env as any).VITE_DEFAULT_ADMIN_NAME?.trim() || 'Default Admin';
+  const name = (import.meta.env as any).VITE_DEFAULT_ADMIN_NAME?.trim() || 'Admin';
 
   if (!email || !password) {
     return null;
