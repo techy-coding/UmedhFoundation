@@ -8,6 +8,7 @@ export interface Donation {
   amount: string;
   category: string;
   date: string;
+  createdAt?: string;
   paymentMethod: string;
   status: string;
   tax80G: boolean;
@@ -54,7 +55,11 @@ export function subscribeToDonations(
           id,
           ...(donation as Omit<Donation, 'id'>),
         }))
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        .sort((a, b) => {
+          const timeB = new Date(b.createdAt || b.date).getTime();
+          const timeA = new Date(a.createdAt || a.date).getTime();
+          return timeB - timeA;
+        });
 
       callback(donations);
     },
@@ -79,6 +84,7 @@ export async function createDonation(data: DonationFormData) {
     amount: data.amount,
     category: data.category,
     date: new Date().toISOString().split('T')[0],
+    createdAt: new Date().toISOString(),
     paymentMethod: data.paymentMethod,
     status: 'completed',
     tax80G: data.tax80G,

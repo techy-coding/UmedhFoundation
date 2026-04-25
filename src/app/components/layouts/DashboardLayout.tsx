@@ -30,7 +30,6 @@ const allowedRoutesByRole: Record<string, string[]> = {
     '/dashboard/events', 
     '/dashboard/events-manage', 
     '/dashboard/tasks',
-    '/dashboard/reports', 
     '/dashboard/beneficiaries', 
     '/dashboard/beneficiaries-old',
     '/dashboard/profile'

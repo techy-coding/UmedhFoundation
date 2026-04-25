@@ -1,16 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { User, Lock, Mail, Shield, Upload, Camera, Calendar } from 'lucide-react';
+import { User, Lock, Mail, Shield, Upload, Camera } from 'lucide-react';
 import { toast } from 'sonner';
-import { isFirebaseConfigured } from '../../lib/firebase';
 import { useRole } from '../../context/RoleContext';
-import { subscribeToDonations, type Donation } from '../../services/donations';
-import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
 import { changePassword } from '../../services/auth';
 
 export function ProfileSettingsPage() {
   const { userName, userEmail, role } = useRole();
-  const [activeTab, setActiveTab] = useState<'profile' | 'history' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -21,24 +18,6 @@ export function ProfileSettingsPage() {
     bio: '',
   });
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [donations, setDonations] = useState<Donation[]>([]);
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(isFirebaseConfigured);
-
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
-    const unsubscribeDonations = subscribeToDonations(setDonations);
-    const unsubscribeCampaigns = subscribeToCampaigns(setCampaigns);
-
-    return () => {
-      unsubscribeDonations();
-      unsubscribeCampaigns();
-    };
-  }, []);
   const [securityForm, setSecurityForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -84,27 +63,6 @@ export function ProfileSettingsPage() {
       console.error('Failed to parse saved user profile:', error);
     }
   }, [userEmail, userName]);
-
-
-  useEffect(() => subscribeToDonations(setDonations), []);
-  useEffect(() => subscribeToCampaigns(setCampaigns), []);
-
-  const donationHistory = useMemo(
-    () =>
-      donations
-        .filter((donation) => donation.userEmail === userEmail)
-        .slice(0, 10)
-        .map((donation) => ({
-          id: donation.id,
-          date: donation.date,
-          campaign: donation.campaign || 'General Donation',
-          amount: Number(donation.amount || 0),
-          type: donation.isRecurring ? 'Monthly' : 'One-time',
-        })),
-    [donations, userEmail]
-  );
-
-  const savedCampaigns = useMemo(() => campaigns.slice(0, 4), [campaigns]);
 
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -227,7 +185,7 @@ export function ProfileSettingsPage() {
           </div>
 
           <nav className="rounded-2xl border border-border bg-card p-3">
-            {(['profile', 'history', 'security'] as const).map((tab) => (
+            {(['profile', 'security'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -238,7 +196,6 @@ export function ProfileSettingsPage() {
                 }`}
               >
                 {tab === 'profile' && <User className="mr-2 inline h-4 w-4" />}
-                {tab === 'history' && <Calendar className="mr-2 inline h-4 w-4" />}
                 {tab === 'security' && <Lock className="mr-2 inline h-4 w-4" />}
                 {tab}
               </button>
@@ -324,66 +281,6 @@ export function ProfileSettingsPage() {
               </div>
             </motion.div>
           )}
-
-          {activeTab === 'history' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <div className="rounded-2xl border border-border bg-card p-8">
-                <h2 className="mb-6 text-2xl font-heading font-bold">Donation History</h2>
-                {donationHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No donations found for this account yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {donationHistory.map((donation) => (
-                      <div key={donation.id} className="flex items-center justify-between rounded-xl bg-muted/30 p-4">
-                        <div>
-                          <h4 className="mb-1 font-semibold">{donation.campaign}</h4>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span>{donation.date}</span>
-                            <span>•</span>
-                            <span>{donation.type}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xl font-bold text-primary">₹{donation.amount.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-8">
-                <h2 className="mb-6 text-2xl font-heading font-bold">Campaigns You Can Support</h2>
-                {savedCampaigns.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No campaigns available yet.</p>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {savedCampaigns.map((campaign) => {
-                      const progress = campaign.goal > 0 ? (campaign.raised / campaign.goal) * 100 : 0;
-                      const image = campaign.image || 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=200&h=150&fit=crop';
-
-                      return (
-                        <div key={campaign.id} className="flex items-center gap-4 rounded-xl bg-muted/30 p-4">
-                          <img src={image} alt={campaign.title} className="h-20 w-20 rounded-xl object-cover" />
-                          <div className="flex-1">
-                            <h4 className="mb-2 font-semibold">{campaign.title}</h4>
-                            <div className="h-2 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full bg-gradient-to-r from-[#FF6B35] to-[#6C5CE7]"
-                                style={{ width: `${Math.min(progress, 100)}%` }}
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">{Math.round(progress)}% funded</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
 
           {activeTab === 'security' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-border bg-card p-8">

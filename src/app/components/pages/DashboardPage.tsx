@@ -141,7 +141,13 @@ export function DashboardPage() {
     [donations]
   );
 
-  const recentDonations = useMemo(() => donations.slice(0, 6), [donations]);
+  const recentDonations = useMemo(
+    () =>
+      [...donations]
+        .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
+        .slice(0, 6),
+    [donations]
+  );
 
   const insights = useMemo(
     () => [

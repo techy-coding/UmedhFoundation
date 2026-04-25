@@ -40,13 +40,20 @@ export function DonorDashboard() {
     { label: 'Impact Score', value: `${impactScore}%`, change: donations.length > 0 ? 'Based on your giving' : 'Start donating', icon: TrendingUp, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
   ];
 
-  const recentDonations = donations.slice(0, 5).map((donation) => ({
-    id: donation.id,
-    date: donation.date,
-    campaign: donation.campaign || donation.category,
-    amount: parseInt(donation.amount || '0', 10),
-    status: donation.status,
-  }));
+  const recentDonations = useMemo(
+    () =>
+      [...donations]
+        .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
+        .slice(0, 5)
+        .map((donation) => ({
+          id: donation.id,
+          date: donation.date,
+          campaign: donation.campaign || donation.category,
+          amount: parseInt(donation.amount || '0', 10),
+          status: donation.status,
+        })),
+    [donations]
+  );
 
   const monthlyTrend = useMemo(() => {
     const monthMap = new Map<string, number>();

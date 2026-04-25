@@ -36,7 +36,6 @@ const roleMenus: Record<string, Array<{ icon: string; label: string; path: strin
     { icon: 'Settings', label: 'manage needs', path: '/dashboard/wishlist-manage' },
     { icon: 'Calendar', label: 'events', path: '/dashboard/events' },
     { icon: 'CheckSquare', label: 'tasks', path: '/dashboard/tasks' },
-    { icon: 'FileText', label: 'reports', path: '/dashboard/reports' },
     { icon: 'UserCog', label: 'beneficiaries', path: '/dashboard/beneficiaries' },
   ],
   admin: [

@@ -305,7 +305,7 @@ export function LoginPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">I want to be a</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {['Donor', 'Volunteer', 'Staff', 'Admin'].map((r) => (
+                    {['Donor', 'Volunteer', 'Staff'].map((r) => (
                       <button
                         key={r}
                         type="button"
