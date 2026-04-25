@@ -1,7 +1,7 @@
 
   # Umedh Foundation Charity Platform UI
 
-  This is a code bundle for Umedh Foundation Charity Platform UI. The original project is available at https://www.figma.com/design/UxVO9wdF2X5TlG4BIEvwMr/Umedh-Foundation-Charity-Platform-UI.
+  This is a code bundle for Umedh Foundation Charity Platform UI. The original project is available at https://umedh.netlify.app/login
 
   ## Running the code
 
