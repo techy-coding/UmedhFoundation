@@ -1,4 +1,4 @@
-import { Search, Bell, Sun, Moon, Globe, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, Sun, Moon, Globe, ChevronDown, User, LogOut } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useRole } from '../../context/RoleContext';
@@ -211,16 +211,6 @@ export function Navbar() {
                 >
                   <User className="w-4 h-4" />
                   Profile
-                </button>
-                <button
-                  onClick={() => {
-                    navigate('/dashboard/profile');
-                    setShowProfileMenu(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
                 </button>
               </div>
               <div className="p-2 border-t border-border">

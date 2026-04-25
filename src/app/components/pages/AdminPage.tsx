@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Filter, MoreVertical, CheckCircle, XCircle, Download, FileText } from 'lucide-react';
+import { Search, Filter, MoreVertical, CheckCircle, XCircle, Download, FileText, Eye, Copy, UserCheck, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { subscribeToUsers, updateUserStatus, type UserRecord } from '../../services/users';
 import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
 import { subscribeToDonations, type Donation } from '../../services/donations';
 import { downloadPdf } from '../../utils/download';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 
 export function AdminPage() {
   const [activeTab, setActiveTab] = useState<'users' | 'campaigns' | 'analytics'>('users');
@@ -235,6 +236,42 @@ export function AdminPage() {
     }
   };
 
+  const handleViewUser = (user: UserRecord) => {
+    toast.info(`${user.name} • ${user.email}`, {
+      description: `Role: ${user.role} | Status: ${user.status} | Joined: ${user.joinedDate}`,
+    });
+  };
+
+  const handleCopyEmail = async (user: UserRecord) => {
+    try {
+      await navigator.clipboard.writeText(user.email);
+      toast.success(`Copied ${user.email}`);
+    } catch (error) {
+      console.error('Failed to copy email:', error);
+      toast.error('Could not copy email.');
+    }
+  };
+
+  const handleActivate = async (user: UserRecord) => {
+    try {
+      await updateUserStatus(user, 'active');
+      toast.success('User activated successfully!');
+    } catch (error) {
+      console.error('Failed to activate user:', error);
+      toast.error('Could not activate user.');
+    }
+  };
+
+  const handleDeactivate = async (user: UserRecord) => {
+    try {
+      await updateUserStatus(user, 'inactive');
+      toast.success('User deactivated successfully.');
+    } catch (error) {
+      console.error('Failed to deactivate user:', error);
+      toast.error('Could not deactivate user.');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -371,9 +408,46 @@ export function AdminPage() {
                                   </button>
                                 </>
                               )}
-                              <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem onClick={() => handleViewUser(user)}>
+                                    <Eye className="w-4 h-4" />
+                                    View details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleCopyEmail(user)}>
+                                    <Copy className="w-4 h-4" />
+                                    Copy email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  {user.status === 'pending' ? (
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleApprove(user)}>
+                                        <UserCheck className="w-4 h-4 text-green-500" />
+                                        Approve user
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleReject(user)} variant="destructive">
+                                        <UserX className="w-4 h-4" />
+                                        Reject user
+                                      </DropdownMenuItem>
+                                    </>
+                                  ) : user.status === 'active' ? (
+                                    <DropdownMenuItem onClick={() => handleDeactivate(user)} variant="destructive">
+                                      <UserX className="w-4 h-4" />
+                                      Deactivate user
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem onClick={() => handleActivate(user)}>
+                                      <UserCheck className="w-4 h-4 text-green-500" />
+                                      Activate user
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </td>
                         </motion.tr>
