@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useRole } from '../../context/RoleContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { createDonation } from '../../services/donations';
 import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
 
@@ -47,6 +48,7 @@ function loadRazorpayScript() {
 export function DonationPage() {
   const navigate = useNavigate();
   const { role } = useRole();
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const [donationType, setDonationType] = useState<'one-time' | 'monthly'>('one-time');
   const [amount, setAmount] = useState(500);
@@ -274,23 +276,23 @@ export function DonationPage() {
           </motion.div>
           <h2 className="text-3xl font-heading font-bold mb-4">Thank You!</h2>
           <p className="text-lg text-muted-foreground mb-6">
-            Your Razorpay payment of ₹{currentAmount.toLocaleString()} has been verified and recorded successfully.
+            {t('donation.verified').replace('{amount}', currentAmount.toLocaleString())}
           </p>
           <div className="bg-gradient-to-br from-[#FF6B35]/10 to-[#6C5CE7]/10 rounded-2xl p-6 mb-6">
-            <p className="text-sm text-muted-foreground mb-2">Impact Created</p>
+            <p className="text-sm text-muted-foreground mb-2">{t('donation.impact_created')}</p>
             <p className="font-medium">{getImpactMessage(currentAmount)}</p>
           </div>
           <button
             onClick={() => setShowSuccess(false)}
             className="w-full px-6 py-3 border border-border rounded-xl hover:bg-muted transition-colors"
           >
-            Make Another Donation
+            {t('donation.make_another')}
           </button>
           <button
             onClick={() => navigate('/dashboard')}
             className="w-full mt-3 px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors"
           >
-            Go to Dashboard
+            {t('donation.go_dashboard')}
           </button>
         </div>
       </motion.div>
@@ -300,20 +302,20 @@ export function DonationPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-heading font-bold mb-2">Make a Donation</h1>
-        <p className="text-muted-foreground">Your contribution is saved directly to Firebase</p>
+        <h1 className="text-3xl font-heading font-bold mb-2">{t('donation.title')}</h1>
+        <p className="text-muted-foreground">{t('donation.subtitle')}</p>
       </div>
 
       {!canDonate && (
         <div className="rounded-2xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground">
-          This page is view-only for non-donor accounts. Only donor users can complete donations.
+          {t('donation.view_only')}
         </div>
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-card rounded-2xl p-6 border border-border">
-            <h3 className="text-xl font-heading font-semibold mb-4">Donation Type</h3>
+            <h3 className="text-xl font-heading font-semibold mb-4">{t('donation.type')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setDonationType('one-time')}
@@ -321,8 +323,8 @@ export function DonationPage() {
                   donationType === 'one-time' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                 }`}
               >
-                <p className="font-medium">One-Time</p>
-                <p className="text-sm text-muted-foreground mt-1">Single donation</p>
+                <p className="font-medium">{t('donation.one_time')}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('donation.single')}</p>
               </button>
               <button
                 onClick={() => setDonationType('monthly')}
@@ -330,8 +332,8 @@ export function DonationPage() {
                   donationType === 'monthly' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                 }`}
               >
-                <p className="font-medium">Monthly</p>
-                <p className="text-sm text-muted-foreground mt-1">Recurring support</p>
+                <p className="font-medium">{t('donation.monthly')}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('donation.recurring')}</p>
               </button>
             </div>
           </motion.div>
@@ -342,10 +344,10 @@ export function DonationPage() {
             transition={{ delay: 0.1 }}
             className="bg-card rounded-2xl p-6 border border-border"
           >
-            <h3 className="text-xl font-heading font-semibold mb-4">Select Campaign</h3>
+            <h3 className="text-xl font-heading font-semibold mb-4">{t('donation.select_campaign')}</h3>
             {campaigns.length === 0 ? (
               <div className="rounded-xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-                No campaigns are available yet. Your donation will be recorded as a general donation.
+                {t('donation.no_campaigns')}
               </div>
             ) : (
               <div className="grid md:grid-cols-3 gap-4">
@@ -378,8 +380,8 @@ export function DonationPage() {
                           ></div>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {progress.label} funded
-                          {campaign.raised > 0 && ` • ₹${campaign.raised.toLocaleString()} raised`}
+                          {progress.label} {t('donation.funded')}
+                          {campaign.raised > 0 && ` • ₹${campaign.raised.toLocaleString()} ${t('donation.raised')}`}
                         </p>
                       </div>
                     </button>
@@ -395,7 +397,7 @@ export function DonationPage() {
             transition={{ delay: 0.2 }}
             className="bg-card rounded-2xl p-6 border border-border"
           >
-            <h3 className="text-xl font-heading font-semibold mb-4">Select Amount</h3>
+            <h3 className="text-xl font-heading font-semibold mb-4">{t('donation.select_amount')}</h3>
             <div className="grid grid-cols-3 gap-3 mb-4">
               {presetAmounts.map((preset) => (
                 <motion.button
@@ -417,14 +419,14 @@ export function DonationPage() {
               ))}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Custom Amount</label>
+              <label className="block text-sm font-medium mb-2">{t('donation.custom_amount')}</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                 <input
                   type="number"
                   value={customAmount}
                   onChange={(e) => setCustomAmount(e.target.value)}
-                  placeholder="Enter custom amount"
+                  placeholder={t('donation.enter_custom_amount')}
                   className="w-full pl-8 pr-4 py-3 rounded-xl bg-muted/50 border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                 />
               </div>
@@ -437,14 +439,14 @@ export function DonationPage() {
             transition={{ delay: 0.3 }}
             className="bg-card rounded-2xl p-6 border border-border"
           >
-            <h3 className="text-xl font-heading font-semibold mb-4">Payment Method</h3>
+            <h3 className="text-xl font-heading font-semibold mb-4">{t('donation.payment_method')}</h3>
             <div className="rounded-xl border-2 border-primary bg-primary/5 p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FF6B35] to-[#6C5CE7] flex items-center justify-center">
                 <Building className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="font-medium">Net Banking</p>
-                <p className="text-sm text-muted-foreground">Razorpay checkout will open with net banking only</p>
+                <p className="font-medium">{t('donation.net_banking')}</p>
+                <p className="text-sm text-muted-foreground">{t('donation.net_banking_help')}</p>
               </div>
             </div>
           </motion.div>
@@ -460,32 +462,32 @@ export function DonationPage() {
               <Heart className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-heading font-semibold">Donation Summary</h3>
-              <p className="text-sm text-muted-foreground">Ready to sync with Firebase</p>
+              <h3 className="text-xl font-heading font-semibold">{t('donation.summary')}</h3>
+              <p className="text-sm text-muted-foreground">{t('donation.summary_subtitle')}</p>
             </div>
           </div>
 
           <div className="space-y-4 mb-6">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Amount</span>
+              <span className="text-muted-foreground">{t('donation.amount')}</span>
               <span className="font-semibold">₹{currentAmount.toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Type</span>
+              <span className="text-muted-foreground">{t('donation.type_label')}</span>
               <span className="font-semibold capitalize">{donationType}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Campaign</span>
-              <span className="font-semibold text-right">{selectedCampaignRecord?.title || 'General Donation'}</span>
+              <span className="text-muted-foreground">{t('donation.campaign')}</span>
+              <span className="font-semibold text-right">{selectedCampaignRecord?.title || t('donation.general')}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Payment</span>
+              <span className="text-muted-foreground">{t('donation.payment')}</span>
               <span className="font-semibold uppercase">RAZORPAY ({paymentMethod})</span>
             </div>
           </div>
 
           <div className="bg-gradient-to-br from-[#FF6B35]/10 to-[#6C5CE7]/10 rounded-xl p-4 mb-6">
-            <p className="text-sm text-muted-foreground mb-2">Impact Preview</p>
+            <p className="text-sm text-muted-foreground mb-2">{t('donation.impact_preview')}</p>
             <p className="font-medium">{getImpactMessage(currentAmount)}</p>
           </div>
 
@@ -496,7 +498,7 @@ export function DonationPage() {
             disabled={isSubmitting || !canDonate}
             className="w-full py-4 bg-gradient-to-r from-[#FF6B35] to-[#6C5CE7] text-white rounded-xl font-medium shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {!canDonate ? 'Donor Account Required' : isSubmitting ? 'Opening Razorpay...' : 'Pay with Razorpay'}
+            {!canDonate ? t('donation.donor_required') : isSubmitting ? t('donation.opening_razorpay') : t('donation.pay_razorpay')}
           </motion.button>
         </motion.div>
       </div>

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send, Sparkles, Trash2, ArrowRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRole, type UserRole } from '../../context/RoleContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface ChatAction {
   label: string;
@@ -214,6 +215,7 @@ export function Chatbot() {
   const navigate = useNavigate();
   const location = useLocation();
   const { role, userName } = useRole();
+  const { t } = useLanguage();
   const defaultMessage = useMemo(() => createDefaultMessage(userName), [userName]);
   const initialState = useMemo(() => loadStoredState(defaultMessage), [defaultMessage]);
   const [isOpen, setIsOpen] = useState(initialState.isOpen);
@@ -342,7 +344,7 @@ export function Chatbot() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">Umedh Assistant</h3>
-                  <p className="text-xs text-white/80">Online • Responds instantly</p>
+                  <p className="text-xs text-white/80">{t('chat.status')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -350,7 +352,7 @@ export function Chatbot() {
                   <button
                     onClick={handleReset}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/20"
-                    title="Clear chat"
+                    title={t('chat.clear')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -358,7 +360,7 @@ export function Chatbot() {
                 <button
                   onClick={() => setIsOpen(false)}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/20"
-                  title="Close assistant"
+                  title={t('chat.close')}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -430,7 +432,7 @@ export function Chatbot() {
 
             {showQuickReplies && (
               <div className="px-4 pb-4">
-                <p className="mb-2 text-xs text-muted-foreground">Quick actions:</p>
+                <p className="mb-2 text-xs text-muted-foreground">{t('chat.quick_actions')}</p>
                 <div className="flex flex-wrap gap-2">
                   {quickReplies.map((reply) => (
                     <motion.button
@@ -458,7 +460,7 @@ export function Chatbot() {
                       handleSend();
                     }
                   }}
-                  placeholder="Ask about donations, support, reports, campaigns..."
+                  placeholder={t('chat.placeholder')}
                   className="flex-1 rounded-xl border border-transparent bg-muted/50 px-4 py-2 focus:border-primary focus:outline-none"
                 />
                 <motion.button

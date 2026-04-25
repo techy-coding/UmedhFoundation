@@ -147,13 +147,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="p-4 border-t border-sidebar-border">
         {!collapsed ? (
           <div className="bg-gradient-to-br from-[#FF6B35]/10 to-[#6C5CE7]/10 rounded-xl p-4 backdrop-blur-sm">
-            <p className="text-sm font-medium text-sidebar-foreground mb-2">Need Help?</p>
-            <p className="text-xs text-muted-foreground mb-3">Contact our support team</p>
+            <p className="text-sm font-medium text-sidebar-foreground mb-2">{t('support.need_help')}</p>
+            <p className="text-xs text-muted-foreground mb-3">{t('support.contact_team')}</p>
             <button
               onClick={openSupport}
               className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
             >
-              Get Support
+              {t('support.get_support')}
             </button>
           </div>
         ) : (

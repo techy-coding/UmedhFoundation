@@ -11,7 +11,7 @@ import { subscribeToNotifications, type NotificationRecord } from '../../service
 
 export function Navbar() {
   const { theme, toggleTheme } = useTheme();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const { role, userName, userEmail, logout } = useRole();
   const navigate = useNavigate();
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -36,7 +36,7 @@ export function Navbar() {
     const now = Date.now();
     const diffMinutes = Math.max(Math.floor((now - timestamp) / 60000), 0);
 
-    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 1) return t('navbar.just_now');
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
 
     const diffHours = Math.floor(diffMinutes / 60);
@@ -75,7 +75,7 @@ export function Navbar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search campaigns, donors, volunteers..."
+            placeholder={t('navbar.search')}
             className="w-full pl-10 pr-4 py-2 rounded-xl bg-muted/50 border border-transparent focus:border-primary focus:outline-none transition-colors"
           />
         </div>
@@ -145,11 +145,11 @@ export function Navbar() {
               className="absolute right-0 top-12 bg-card border border-border rounded-xl shadow-lg w-80 z-50"
             >
               <div className="p-4 border-b border-border">
-                <h3 className="font-semibold">Notifications</h3>
+                <h3 className="font-semibold">{t('navbar.notifications')}</h3>
               </div>
               <div className="max-h-96 overflow-auto">
                 {recentNotifications.length === 0 ? (
-                  <div className="p-4 text-sm text-muted-foreground">No notifications yet.</div>
+                  <div className="p-4 text-sm text-muted-foreground">{t('navbar.no_notifications')}</div>
                 ) : (
                   recentNotifications.map((notif) => (
                     <div key={notif.id} className="p-4 border-b border-border hover:bg-muted/50">
@@ -210,7 +210,7 @@ export function Navbar() {
                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
                 >
                   <User className="w-4 h-4" />
-                  Profile
+                  {t('navbar.profile')}
                 </button>
               </div>
               <div className="p-2 border-t border-border">
@@ -221,7 +221,7 @@ export function Navbar() {
                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
-                  Logout
+                  {t('navbar.logout')}
                 </button>
               </div>
             </motion.div>
