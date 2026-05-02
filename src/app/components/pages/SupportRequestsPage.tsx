@@ -108,12 +108,12 @@ export function SupportRequestsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {Object.entries(statusConfig).map(([status, config]) => (
-          <div key={status} className="bg-card border border-border rounded-xl p-4">
+          <div key={`${status}-${requests.filter((r) => r.status === status).length}`} className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <config.icon className="w-4 h-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground capitalize">{status}</p>
             </div>
-            <p className="text-2xl font-bold">{requests.filter((r) => r.status === status).length}</p>
+            <p key={requests.filter((r) => r.status === status).length} className="text-2xl font-bold">{requests.filter((r) => r.status === status).length}</p>
           </div>
         ))}
       </div>

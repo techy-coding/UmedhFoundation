@@ -160,7 +160,7 @@ export function VolunteerDashboard() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={stat.label}
+              key={`${stat.label}-${stat.value}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.05 }}
@@ -172,7 +172,7 @@ export function VolunteerDashboard() {
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold">{stat.value}</p>
+              <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
             </motion.div>
           );
         })}

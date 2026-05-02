@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { subscribeToDonations, type Donation } from '../../services/donations';
 import { subscribeToBeneficiaries, type Beneficiary } from '../../services/beneficiaries';
 import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
+import { toCurrencyNumber } from '../../utils/currency';
+import { downloadPdf } from '../../utils/download';
 
 export function TransparencyPage() {
   const [donations, setDonations] = useState<Donation[]>([]);
@@ -17,14 +19,14 @@ export function TransparencyPage() {
   useEffect(() => subscribeToCampaigns(setCampaigns), []);
 
   const totalFunds = useMemo(
-    () => donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0),
+    () => donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0),
     [donations]
   );
 
   const fundUsage = useMemo(() => {
     const categoryTotals = donations.reduce<Record<string, number>>((acc, donation) => {
       const key = donation.category || 'General';
-      acc[key] = (acc[key] || 0) + Number(donation.amount || 0);
+      acc[key] = (acc[key] || 0) + toCurrencyNumber(donation.amount);
       return acc;
     }, {});
 
@@ -48,7 +50,7 @@ export function TransparencyPage() {
       const year = date.getFullYear();
       const quarter = `Q${Math.floor(date.getMonth() / 3) + 1} ${year}`;
       quarterMap[quarter] = quarterMap[quarter] || { quarter, total: 0 };
-      quarterMap[quarter].total += Number(donation.amount || 0);
+      quarterMap[quarter].total += toCurrencyNumber(donation.amount);
     });
 
     return Object.values(quarterMap).sort((a, b) => a.quarter.localeCompare(b.quarter));
@@ -71,6 +73,47 @@ export function TransparencyPage() {
 
   const directProgramUse = totalFunds > 0 ? '100%' : '0%';
   const adminCosts = totalFunds > 0 ? '0%' : '0%';
+  const transparencyStats = useMemo(
+    () => [
+      { label: 'Total Funds Received', value: `₹${totalFunds.toLocaleString()}`, color: 'from-[#FF6B35] to-[#FF8B35]' },
+      { label: 'Direct Program Use', value: directProgramUse, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
+      { label: 'Admin Costs', value: adminCosts, color: 'from-[#FFD93D] to-[#FFE93D]' },
+      { label: 'Lives Impacted', value: beneficiaries.length.toLocaleString(), color: 'from-[#4ECDC4] to-[#6EDDC4]' },
+    ],
+    [adminCosts, beneficiaries.length, directProgramUse, totalFunds]
+  );
+
+  const exportAuditSnapshot = () => {
+    downloadPdf({
+      filename: 'audit-snapshot.pdf',
+      title: 'Audit Snapshot',
+      subtitle: 'Transparency snapshot generated from live Umedh platform data.',
+      lines: [
+        `Total Funds Received: ₹${totalFunds.toLocaleString()}`,
+        `Lives Impacted: ${beneficiaries.length}`,
+        `Campaign Records: ${campaigns.length}`,
+        `Donation Records: ${donations.length}`,
+      ],
+      sections: [
+        {
+          heading: 'Audit Snapshot',
+          isTable: true,
+          rows: [
+            ['Period', 'Status', 'Source'],
+            ...auditReports.map((report) => [report.year, report.status, report.auditor]),
+          ],
+        },
+        {
+          heading: 'Platform Status',
+          isTable: true,
+          rows: [
+            ['System', 'Status'],
+            ...certifications.map((cert) => [cert.name, cert.status]),
+          ],
+        },
+      ],
+    });
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -80,14 +123,9 @@ export function TransparencyPage() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        {[
-          { label: 'Total Funds Received', value: `₹${totalFunds.toLocaleString()}`, color: 'from-[#FF6B35] to-[#FF8B35]' },
-          { label: 'Direct Program Use', value: directProgramUse, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
-          { label: 'Admin Costs', value: adminCosts, color: 'from-[#FFD93D] to-[#FFE93D]' },
-          { label: 'Lives Impacted', value: beneficiaries.length.toLocaleString(), color: 'from-[#4ECDC4] to-[#6EDDC4]' },
-        ].map((stat) => (
+        {transparencyStats.map((stat) => (
           <motion.div
-            key={stat.label}
+            key={`${stat.label}-${stat.value}`}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="bg-card rounded-2xl p-6 border border-border"
@@ -96,7 +134,7 @@ export function TransparencyPage() {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-            <p className="text-3xl font-bold">{stat.value}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -198,7 +236,10 @@ export function TransparencyPage() {
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-card rounded-2xl p-8 border border-border">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-heading font-bold">Audit Snapshot</h3>
-          <button className="px-4 py-2 bg-primary text-white rounded-xl flex items-center gap-2">
+          <button
+            onClick={exportAuditSnapshot}
+            className="px-4 py-2 bg-primary text-white rounded-xl flex items-center gap-2"
+          >
             <Download className="w-4 h-4" />
             Export
           </button>

@@ -513,6 +513,10 @@ const EXCLUDED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 function translateStaticContent(root: ParentNode, language: Language) {
   const activeMap = language === 'en' ? undefined : contentTranslations[language];
 
+  if (!activeMap) {
+    return;
+  }
+
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parentTag = node.parentElement?.tagName;
@@ -536,18 +540,27 @@ function translateStaticContent(root: ParentNode, language: Language) {
   }
 
   textNodes.forEach((node) => {
-    const original = textNodeOriginals.get(node) ?? node.textContent ?? '';
-    if (!textNodeOriginals.has(node)) {
-      textNodeOriginals.set(node, original);
-    }
-
+    const current = node.textContent ?? '';
+    const original = textNodeOriginals.get(node) ?? current;
     const trimmed = original.trim();
     if (!trimmed) {
       return;
     }
 
-    const translated = activeMap?.[trimmed];
-    node.textContent = translated ? original.replace(trimmed, translated) : original;
+    const translated = activeMap[trimmed];
+
+    if (!translated) {
+      // Keep dynamic or data-driven text under React's control instead of
+      // forcing an older cached value back into the DOM.
+      textNodeOriginals.set(node, current);
+      return;
+    }
+
+    if (!textNodeOriginals.has(node)) {
+      textNodeOriginals.set(node, original);
+    }
+
+    node.textContent = original.replace(trimmed, translated);
   });
 
   root.querySelectorAll<HTMLElement>('*').forEach((element) => {

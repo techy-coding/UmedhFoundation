@@ -253,6 +253,11 @@ export function ApprovalsPage() {
   };
 
   const pendingCount = approvals.filter((a) => a.status === 'pending').length;
+  const approvalStats = [
+    { label: 'Pending', value: pendingCount, className: 'text-yellow-600' },
+    { label: 'Approved', value: approvals.filter((a) => a.status === 'approved').length, className: 'text-green-600' },
+    { label: 'Rejected', value: approvals.filter((a) => a.status === 'rejected').length, className: 'text-red-600' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -268,22 +273,12 @@ export function ApprovalsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Pending</p>
-          <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Approved</p>
-          <p className="text-3xl font-bold text-green-600">
-            {approvals.filter((a) => a.status === 'approved').length}
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Rejected</p>
-          <p className="text-3xl font-bold text-red-600">
-            {approvals.filter((a) => a.status === 'rejected').length}
-          </p>
-        </div>
+        {approvalStats.map((stat) => (
+          <div key={`${stat.label}-${stat.value}`} className="bg-card border border-border rounded-xl p-6">
+            <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
+            <p key={stat.value} className={`text-3xl font-bold ${stat.className}`}>{stat.value}</p>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4">

@@ -24,29 +24,106 @@ const categoryMap = {
 
 type WishlistCategory = keyof typeof categoryMap;
 
+function toNeedNumber(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string') return 0;
+
+  const parsed = Number(value.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function applyNeedProgressUpdate(
+  need: NeedRecord,
+  fulfilledQuantity: number,
+  status: NeedRecord['status'],
+  donorInfo: DonorEntry,
+  donors: DonorEntry[]
+): NeedRecord {
+  return {
+    ...need,
+    fulfilledQuantity,
+    status,
+    donorInfo,
+    donors,
+  };
+}
+
 export function WishlistPage() {
   const { role, userName, userEmail } = useRole();
   const canDonateToWishlist = role === 'donor';
   const [selectedCategory, setSelectedCategory] = useState<WishlistCategory>('all');
   const [needs, setNeeds] = useState<NeedRecord[]>([]);
+  const [optimisticNeedUpdates, setOptimisticNeedUpdates] = useState<Record<string, Partial<NeedRecord>>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [cart, setCart] = useState<Array<{ itemId: string; quantity: number }>>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  useEffect(() => subscribeToNeeds(setNeeds), []);
+  useEffect(
+    () =>
+      subscribeToNeeds((items) => {
+        setNeeds(items);
+        setOptimisticNeedUpdates((current) => {
+          const next = { ...current };
+
+          for (const item of items) {
+            const optimisticItem = current[item.id];
+            if (!optimisticItem) {
+              continue;
+            }
+
+            const optimisticFulfilled = toNeedNumber(optimisticItem.fulfilledQuantity);
+            const actualFulfilled = toNeedNumber(item.fulfilledQuantity);
+
+            if (actualFulfilled >= optimisticFulfilled) {
+              delete next[item.id];
+            }
+          }
+
+          return next;
+        });
+      }),
+    []
+  );
+
+  const displayNeeds = useMemo(
+    () =>
+      needs.map((item) => ({
+        ...item,
+        ...(optimisticNeedUpdates[item.id] || {}),
+      })),
+    [needs, optimisticNeedUpdates]
+  );
 
   // Exclude empty/placeholder records that have no meaningful data so the
   // wishlist page never renders blank cards (no name, 0 qty, ₹0 cost, etc.).
   const validNeeds = useMemo(() => {
-    return needs.filter((item) => {
+    return displayNeeds.filter((item) => {
       const hasItemName = Boolean(item.item && item.item.trim());
       const hasCategory = Boolean(item.category && item.category.trim());
-      const hasQuantity = Number(item.quantity || 0) > 0;
-      const hasCost = Number(item.estimatedCost || 0) > 0;
+      const hasQuantity = toNeedNumber(item.quantity) > 0;
+      const hasCost = toNeedNumber(item.estimatedCost) > 0;
 
       return hasItemName && hasCategory && (hasQuantity || hasCost);
     });
-  }, [needs]);
+  }, [displayNeeds]);
+
+  const wishlistStats = useMemo(() => {
+    const totalRequired = validNeeds.reduce((sum, item) => sum + toNeedNumber(item.quantity), 0);
+    const totalFulfilled = validNeeds.reduce(
+      (sum, item) => sum + toNeedNumber(item.fulfilledQuantity),
+      0
+    );
+    const urgentNeeds = validNeeds.filter(
+      (item) => item.priority === 'urgent' || item.priority === 'high'
+    ).length;
+
+    return [
+      { label: 'Total Items Needed', value: Math.max(totalRequired - totalFulfilled, 0) },
+      { label: 'Items Fulfilled', value: totalFulfilled },
+      { label: 'Urgent Needs', value: urgentNeeds },
+      { label: 'Categories', value: Object.keys(categoryMap).length - 1 },
+    ];
+  }, [validNeeds]);
 
   const filteredItems = useMemo(() => {
     const activeNeeds = validNeeds.filter((item) => item.status !== 'fulfilled');
@@ -59,8 +136,8 @@ export function WishlistPage() {
 
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => {
-    const need = needs.find((entry) => entry.id === item.itemId);
-    return sum + Number(need?.estimatedCost || 0) * item.quantity;
+    const need = displayNeeds.find((entry) => entry.id === item.itemId);
+    return sum + toNeedNumber(need?.estimatedCost) * item.quantity;
   }, 0);
 
   const addToCart = (itemId: string) => {
@@ -70,13 +147,13 @@ export function WishlistPage() {
     }
 
     const quantity = quantities[itemId] || 1;
-    const need = needs.find((entry) => entry.id === itemId);
+    const need = displayNeeds.find((entry) => entry.id === itemId);
 
     if (!need) {
       return;
     }
 
-    const remaining = Math.max(Number(need.quantity) - Number(need.fulfilledQuantity || 0), 0);
+    const remaining = Math.max(toNeedNumber(need.quantity) - toNeedNumber(need.fulfilledQuantity), 0);
     if (quantity > remaining) {
       toast.error(`Only ${remaining} item(s) are still needed.`);
       return;
@@ -123,14 +200,14 @@ export function WishlistPage() {
 
     try {
       for (const cartItem of cart) {
-        const need = needs.find((entry) => entry.id === cartItem.itemId);
+        const need = displayNeeds.find((entry) => entry.id === cartItem.itemId);
         if (!need) {
           continue;
         }
 
-        const unitCost = Number(need.estimatedCost || 0);
-        const nextFulfilled = Number(need.fulfilledQuantity || 0) + cartItem.quantity;
-        const targetQuantity = Number(need.quantity || 0);
+        const unitCost = toNeedNumber(need.estimatedCost);
+        const nextFulfilled = toNeedNumber(need.fulfilledQuantity) + cartItem.quantity;
+        const targetQuantity = toNeedNumber(need.quantity);
         const nextStatus =
           nextFulfilled >= targetQuantity ? 'fulfilled' : nextFulfilled > 0 ? 'partial' : 'pending';
 
@@ -161,6 +238,23 @@ export function WishlistPage() {
         const existingDonors = getDonorEntries(need);
         const nextDonors = [...existingDonors, newDonor];
 
+        const nextNeedState = applyNeedProgressUpdate(
+          need,
+          nextFulfilled,
+          nextStatus,
+          newDonor,
+          nextDonors
+        );
+
+        setOptimisticNeedUpdates((current) => ({
+          ...current,
+          [need.id]: nextNeedState,
+        }));
+
+        setNeeds((current) =>
+          current.map((entry) => (entry.id === need.id ? nextNeedState : entry))
+        );
+
         await updateNeed(
           need.id,
           {
@@ -177,6 +271,11 @@ export function WishlistPage() {
           nextStatus,
           nextDonors
         );
+
+        setQuantities((current) => ({
+          ...current,
+          [need.id]: 1,
+        }));
       }
 
       setCart([]);
@@ -224,15 +323,10 @@ export function WishlistPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {[
-          { label: 'Total Items Needed', value: validNeeds.reduce((sum, item) => sum + Number(item.quantity || 0), 0) },
-          { label: 'Items Fulfilled', value: validNeeds.reduce((sum, item) => sum + Number(item.fulfilledQuantity || 0), 0) },
-          { label: 'Urgent Needs', value: validNeeds.filter((item) => item.priority === 'urgent' || item.priority === 'high').length },
-          { label: 'Categories', value: Object.keys(categoryMap).length - 1 },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-border bg-card p-6">
+        {wishlistStats.map((stat) => (
+          <div key={`${stat.label}-${stat.value}`} className="rounded-2xl border border-border bg-card p-6">
             <p className="mb-1 text-sm text-muted-foreground">{stat.label}</p>
-            <p className="text-3xl font-bold">{stat.value}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
           </div>
         ))}
       </div>
@@ -269,8 +363,10 @@ export function WishlistPage() {
         )}
 
         {filteredItems.map((item) => {
-          const remaining = Math.max(Number(item.quantity || 0) - Number(item.fulfilledQuantity || 0), 0);
-          const progress = Number(item.quantity || 0) > 0 ? (Number(item.fulfilledQuantity || 0) / Number(item.quantity || 0)) * 100 : 0;
+          const itemQuantity = toNeedNumber(item.quantity);
+          const fulfilledQuantity = toNeedNumber(item.fulfilledQuantity);
+          const remaining = Math.max(itemQuantity - fulfilledQuantity, 0);
+          const progress = itemQuantity > 0 ? (fulfilledQuantity / itemQuantity) * 100 : 0;
           const quantity = quantities[item.id] || 1;
           const Icon =
             item.category === 'education'
@@ -311,7 +407,7 @@ export function WishlistPage() {
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Progress</span>
                   <span className="font-medium">
-                    {item.fulfilledQuantity}/{item.quantity}
+                    {fulfilledQuantity}/{itemQuantity}
                   </span>
                 </div>
                 <div className="mb-2 h-2 overflow-hidden rounded-full bg-muted">
@@ -325,7 +421,7 @@ export function WishlistPage() {
 
               <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
                 <span>Required by {item.requiredBy || 'Open need'}</span>
-                <span className="font-medium text-primary">₹{Number(item.estimatedCost || 0).toLocaleString()} per item</span>
+                <span className="font-medium text-primary">₹{toNeedNumber(item.estimatedCost).toLocaleString()} per item</span>
               </div>
 
               {canDonateToWishlist ? (

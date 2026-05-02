@@ -21,6 +21,16 @@ import {
 } from '../../services/sponsorships';
 import { downloadPdf } from '../../utils/download';
 import { createNotification } from '../../services/notifications';
+import { toCurrencyNumber } from '../../utils/currency';
+
+function isSponsorshipForUser(sponsorship: SponsorshipRecord, userEmail: string) {
+  return sponsorship.donorEmail?.trim().toLowerCase() === userEmail.trim().toLowerCase();
+}
+
+const fallbackProfileImages = {
+  children: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400&h=300&fit=crop',
+  elderly: 'https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400&h=300&fit=crop',
+} as const;
 
 export function SponsorshipPage() {
   const { role, userEmail, userName } = useRole();
@@ -48,15 +58,45 @@ export function SponsorshipPage() {
   }, []);
 
   const mySponsored = useMemo(
-    () => sponsorships.filter((item) => item.donorEmail === userEmail),
+    () => sponsorships.filter((item) => isSponsorshipForUser(item, userEmail)),
     [sponsorships, userEmail]
   );
 
+  const sponsorshipSummary = useMemo(() => {
+    const activeCount = mySponsored.filter((item) => item.status === 'active').length;
+    const totalContributed = mySponsored.reduce(
+      (sum, item) => sum + toCurrencyNumber(item.totalDonated),
+      0
+    );
+    const monthsActive =
+      mySponsored.length > 0 ? Math.max(...mySponsored.map((item) => Number(item.monthsPaid) || 0)) : 0;
+
+    return {
+      activeCount,
+      totalContributed,
+      monthsActive,
+      impactScore: activeCount * 20,
+    };
+  }, [mySponsored]);
+
   const sponsoredBeneficiaryIds = new Set(sponsorships.map((item) => item.beneficiaryId));
+  const categoryBeneficiaries = useMemo(
+    () =>
+      beneficiaries.filter((item) =>
+        selectedCategory === 'children' ? item.category !== 'elderly' : item.category === 'elderly'
+      ),
+    [beneficiaries, selectedCategory]
+  );
+  const categorySponsoredCount = useMemo(
+    () =>
+      sponsorships.filter((item) =>
+        categoryBeneficiaries.some((beneficiary) => beneficiary.id === item.beneficiaryId)
+      ).length,
+    [categoryBeneficiaries, sponsorships]
+  );
   const availableChildren = useMemo(
     () =>
-      beneficiaries
-        .filter((item) => (selectedCategory === 'children' ? item.category !== 'elderly' : item.category === 'elderly'))
+      categoryBeneficiaries
         .filter((item) => !sponsoredBeneficiaryIds.has(item.id))
         .map((item) => ({
           id: item.id,
@@ -65,12 +105,35 @@ export function SponsorshipPage() {
           gender: item.gender,
           location: item.address || 'Location not specified',
           story: item.specialNeeds || item.medicalHistory || 'Support profile available for sponsorship.',
-          image: item.photo || 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400&h=300&fit=crop',
+          image: item.photo || fallbackProfileImages[selectedCategory],
           education: item.education || 'Not specified',
           interests: item.specialNeeds ? item.specialNeeds.split(',').map((value) => value.trim()).filter(Boolean) : ['Care Support'],
           monthlyNeed: item.category === 'elderly' ? 4000 : 3000,
         })),
-    [beneficiaries, selectedCategory, sponsoredBeneficiaryIds]
+    [categoryBeneficiaries, selectedCategory, sponsoredBeneficiaryIds]
+  );
+
+  const availableStats = useMemo(
+    () => {
+      const categoryLabel = selectedCategory === 'children' ? 'Children' : 'Elderly';
+      const averageMonthlyNeed = availableChildren.length
+        ? Math.round(
+            availableChildren.reduce((sum, item) => sum + item.monthlyNeed, 0) /
+              availableChildren.length
+          )
+        : 0;
+      const successRate = categoryBeneficiaries.length
+        ? Math.round((categorySponsoredCount / categoryBeneficiaries.length) * 100)
+        : 0;
+
+      return [
+        { label: `${categoryLabel} Available`, value: availableChildren.length.toString(), icon: Heart },
+        { label: `${categoryLabel} Sponsored`, value: categorySponsoredCount.toString(), icon: TrendingUp },
+        { label: 'Average Monthly Need', value: `₹${averageMonthlyNeed.toLocaleString()}`, icon: Gift },
+        { label: 'Success Rate', value: `${successRate}%`, icon: Calendar },
+      ];
+    },
+    [availableChildren, categoryBeneficiaries.length, categorySponsoredCount, selectedCategory]
   );
 
   const handleSponsor = async (child: (typeof availableChildren)[number]) => {
@@ -184,7 +247,7 @@ export function SponsorshipPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-bold mb-2">Child Sponsorship</h1>
+          <h1 className="text-3xl font-heading font-bold mb-2">Care Sponsorship</h1>
           <p className="text-muted-foreground">Make a lasting impact through monthly sponsorship</p>
         </div>
         <div className="flex gap-3">
@@ -192,7 +255,9 @@ export function SponsorshipPage() {
             Available
           </button>
           <button onClick={() => setSelectedTab('my-sponsorships')} className={`px-6 py-2 rounded-xl font-medium transition-all ${selectedTab === 'my-sponsorships' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-            My Sponsorships ({mySponsored.length})
+            <span key={sponsorshipSummary.activeCount}>
+              My Sponsorships ({sponsorshipSummary.activeCount})
+            </span>
           </button>
         </div>
       </div>
@@ -206,20 +271,15 @@ export function SponsorshipPage() {
       {selectedTab === 'available' && (
         <>
           <div className="grid lg:grid-cols-4 gap-6">
-            {[
-              { label: 'Children Available', value: availableChildren.length.toString(), icon: Heart },
-              { label: 'Sponsored This Month', value: sponsorships.length.toString(), icon: TrendingUp },
-              { label: 'Average Monthly Need', value: `₹${availableChildren.length ? Math.round(availableChildren.reduce((sum, item) => sum + item.monthlyNeed, 0) / availableChildren.length) : 0}`, icon: Gift },
-              { label: 'Success Rate', value: `${beneficiaries.length ? Math.round((sponsorships.length / beneficiaries.length) * 100) : 0}%`, icon: Calendar },
-            ].map((stat, i) => {
+            {availableStats.map((stat, i) => {
               const Icon = stat.icon;
               return (
-                <motion.div key={i} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
+                <motion.div key={`${stat.label}-${stat.value}`} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#6C5CE7] flex items-center justify-center mb-4">
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                   <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-                  <p className="text-3xl font-bold">{stat.value}</p>
+                  <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
                 </motion.div>
               );
             })}
@@ -242,7 +302,7 @@ export function SponsorshipPage() {
               <motion.div key={child.id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} className="bg-card rounded-2xl overflow-hidden border border-border shadow-lg">
                 <div className="grid md:grid-cols-5 gap-6">
                   <div className="md:col-span-2 relative h-64 md:h-auto">
-                    <img src={child.image} alt={child.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=400&h=300&fit=crop'; }} />
+                    <img src={child.image} alt={child.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = fallbackProfileImages[selectedCategory]; }} />
                     <div className="absolute top-4 left-4 bg-white/90 dark:bg-black/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium">
                       {child.age || '-'} years
                     </div>
@@ -281,17 +341,17 @@ export function SponsorshipPage() {
         <div className="space-y-6">
           <div className="grid lg:grid-cols-4 gap-6">
             {[
-              { label: 'Active Sponsorships', value: mySponsored.length.toString(), color: 'from-[#FF6B35] to-[#FF8B35]' },
-              { label: 'Total Contributed', value: `₹${mySponsored.reduce((sum, s) => sum + s.totalDonated, 0).toLocaleString()}`, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
-              { label: 'Months Active', value: mySponsored.length > 0 ? Math.max(...mySponsored.map((s) => s.monthsPaid)).toString() : '0', color: 'from-[#FFD93D] to-[#FFE93D]' },
-              { label: 'Impact Score', value: `${mySponsored.length * 20}%`, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
+              { label: 'Active Sponsorships', value: sponsorshipSummary.activeCount.toString(), color: 'from-[#FF6B35] to-[#FF8B35]' },
+              { label: 'Total Contributed', value: `₹${sponsorshipSummary.totalContributed.toLocaleString()}`, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
+              { label: 'Months Active', value: sponsorshipSummary.monthsActive.toString(), color: 'from-[#FFD93D] to-[#FFE93D]' },
+              { label: 'Impact Score', value: `${sponsorshipSummary.impactScore}%`, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
             ].map((stat, i) => (
-              <motion.div key={i} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
+              <motion.div key={`${stat.label}-${stat.value}`} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4`}>
                   <Heart className="w-6 h-6 text-white" />
                 </div>
                 <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold">{stat.value}</p>
+                <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
               </motion.div>
             ))}
           </div>

@@ -9,28 +9,13 @@ import { subscribeToCampaigns, type CampaignRecord } from '../../services/campai
 import { subscribeToDonations, type Donation } from '../../services/donations';
 import { subscribeToUsers, type UserRecord } from '../../services/users';
 import { subscribeToBeneficiaries, type Beneficiary } from '../../services/beneficiaries';
+import { toCurrencyNumber } from '../../utils/currency';
 
-function Counter({ end, duration = 2000 }: { end: number; duration?: number }) {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let start = 0;
-    const increment = end / Math.max(duration / 16, 1);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 16);
-
-    return () => clearInterval(timer);
-  }, [end, duration]);
-
-  return <>{count.toLocaleString()}</>;
-}
+const publicHighlights = {
+  totalDonations: 25000000,
+  childrenHelped: 5000,
+  activeVolunteers: 1200,
+};
 
 export function HomePage() {
   const { t } = useLanguage();
@@ -39,11 +24,43 @@ export function HomePage() {
   const [donations, setDonations] = useState<Donation[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [campaignsLoaded, setCampaignsLoaded] = useState(false);
+  const [donationsLoaded, setDonationsLoaded] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [beneficiariesLoaded, setBeneficiariesLoaded] = useState(false);
 
-  useEffect(() => subscribeToCampaigns(setCampaigns), []);
-  useEffect(() => subscribeToDonations(setDonations), []);
-  useEffect(() => subscribeToUsers(setUsers), []);
-  useEffect(() => subscribeToBeneficiaries(setBeneficiaries), []);
+  useEffect(
+    () =>
+      subscribeToCampaigns((items) => {
+        setCampaigns(items);
+        setCampaignsLoaded(true);
+      }),
+    []
+  );
+  useEffect(
+    () =>
+      subscribeToDonations((items) => {
+        setDonations(items);
+        setDonationsLoaded(true);
+      }),
+    []
+  );
+  useEffect(
+    () =>
+      subscribeToUsers((items) => {
+        setUsers(items);
+        setUsersLoaded(true);
+      }),
+    []
+  );
+  useEffect(
+    () =>
+      subscribeToBeneficiaries((items) => {
+        setBeneficiaries(items);
+        setBeneficiariesLoaded(true);
+      }),
+    []
+  );
 
   const featuredCampaigns = useMemo(
     () => campaigns.filter((campaign) => campaign.status !== 'draft').slice(0, 3),
@@ -51,18 +68,61 @@ export function HomePage() {
   );
 
   const totalRaised = useMemo(
-    () => donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0),
+    () => donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0),
     [donations]
+  );
+
+  const totalCampaignRaised = useMemo(
+    () => campaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
+    [campaigns]
+  );
+
+  const activeCampaignCount = useMemo(
+    () => campaigns.filter((campaign) => campaign.status === 'active').length,
+    [campaigns]
+  );
+
+  const activeVolunteerCount = useMemo(
+    () => users.filter((user) => user.role === 'volunteer').length,
+    [users]
+  );
+
+  const beneficiaryCount = beneficiaries.length;
+
+  const publicStatValues = useMemo(
+    () => ({
+      totalDonations: Math.max(totalRaised, totalCampaignRaised, publicHighlights.totalDonations),
+      childrenHelped: Math.max(beneficiaryCount, publicHighlights.childrenHelped),
+      activeVolunteers: Math.max(activeVolunteerCount, publicHighlights.activeVolunteers),
+      activeCampaigns: Math.max(activeCampaignCount, featuredCampaigns.length),
+    }),
+    [activeCampaignCount, activeVolunteerCount, beneficiaryCount, featuredCampaigns.length, totalCampaignRaised, totalRaised]
   );
 
   const stats = useMemo(
     () => [
-      { label: t('stats.donations'), value: totalRaised, prefix: '₹' },
-      { label: t('stats.children'), value: beneficiaries.length, suffix: '+' },
-      { label: t('stats.volunteers'), value: users.filter((user) => user.role === 'volunteer').length, suffix: '+' },
-      { label: t('stats.campaigns'), value: campaigns.filter((campaign) => campaign.status === 'active').length },
+      {
+        label: t('stats.donations'),
+        value: publicStatValues.totalDonations,
+        displayValue: `₹${publicStatValues.totalDonations.toLocaleString()}`,
+      },
+      {
+        label: t('stats.children'),
+        value: publicStatValues.childrenHelped,
+        displayValue: `${publicStatValues.childrenHelped.toLocaleString()}+`,
+      },
+      {
+        label: t('stats.volunteers'),
+        value: publicStatValues.activeVolunteers,
+        displayValue: `${publicStatValues.activeVolunteers.toLocaleString()}+`,
+      },
+      {
+        label: t('stats.campaigns'),
+        value: publicStatValues.activeCampaigns,
+        displayValue: publicStatValues.activeCampaigns.toLocaleString(),
+      },
     ],
-    [beneficiaries.length, campaigns, t, totalRaised, users]
+    [publicStatValues, t]
   );
 
   const features = [
@@ -174,7 +234,9 @@ export function HomePage() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
               <div className="absolute bottom-6 left-6 right-6 bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-2xl p-6">
-                <p className="text-2xl font-bold mb-1">{beneficiaries.length.toLocaleString()}</p>
+                <p className="text-2xl font-bold mb-1">
+                  {(beneficiariesLoaded ? beneficiaryCount : publicStatValues.childrenHelped).toLocaleString()}+
+                </p>
                 <p className="text-sm text-muted-foreground">Registered beneficiaries</p>
               </div>
             </div>
@@ -187,17 +249,18 @@ export function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, i) => (
               <motion.div
-                key={stat.label}
+                key={`${stat.label}-${stat.value}`}
                 initial={{ y: 20, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 className="text-center"
               >
-                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#FF6B35] to-[#6C5CE7] bg-clip-text text-transparent mb-2">
-                  {stat.prefix}
-                  <Counter end={stat.value} />
-                  {stat.suffix}
+                <div
+                  key={stat.value}
+                  className="mx-auto mb-2 max-w-full break-words text-3xl sm:text-4xl md:text-[2.75rem] leading-tight font-bold bg-gradient-to-r from-[#FF6B35] to-[#6C5CE7] bg-clip-text text-transparent"
+                >
+                  {stat.displayValue}
                 </div>
                 <p className="text-muted-foreground">{stat.label}</p>
               </motion.div>

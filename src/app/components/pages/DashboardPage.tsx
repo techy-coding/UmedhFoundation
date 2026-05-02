@@ -20,6 +20,7 @@ import {
 import {
   subscribeToBeneficiaries,
 } from '../../services/beneficiaries';
+import { subscribeToCollection } from '../../services/firebaseCrud';
 import { subscribeToEvents, type EventRecord } from '../../services/events';
 import { setTaskStatus, subscribeToTasks, type TaskRecord } from '../../services/tasks';
 import {
@@ -27,11 +28,16 @@ import {
   subscribeToAchievements,
   type AchievementRecord,
 } from '../../services/achievements';
+import { toCurrencyNumber } from '../../utils/currency';
 
 import { DonorDashboard } from './DonorDashboard';
-import { VolunteerDashboard } from './VolunteerDashboard';
 import { StaffDashboard } from './StaffDashboard';
 import { BeneficiaryDashboard } from './BeneficiaryDashboard';
+
+interface ApprovalRecord {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
 
 function StatCard({ icon: Icon, title, value }: { icon: any; title: string; value: string }) {
   return (
@@ -47,7 +53,7 @@ function StatCard({ icon: Icon, title, value }: { icon: any; title: string; valu
         </div>
       </div>
       <p className="text-muted-foreground text-sm mb-1">{title}</p>
-      <p className="text-3xl font-bold">{value}</p>
+      <p key={value} className="text-3xl font-bold">{value}</p>
     </motion.div>
   );
 }
@@ -59,6 +65,7 @@ export function DashboardPage() {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<any[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
@@ -71,31 +78,53 @@ export function DashboardPage() {
       return;
     }
 
-    const unsubscribeDonations = subscribeToDonations(setDonations);
-    const unsubscribeCampaigns = subscribeToCampaigns(setCampaigns);
-    const unsubscribeUsers = subscribeToUsers(setUsers);
-    const unsubscribeBeneficiaries = subscribeToBeneficiaries(setBeneficiaries);
+    setIsLoading(true);
 
     if (role === 'volunteer') {
+      const unsubscribeUsers = subscribeToUsers(setUsers);
       const unsubscribeEvents = subscribeToEvents(setEvents);
       const unsubscribeTasks = subscribeToTasks(setTasks);
       const unsubscribeAchievements = subscribeToAchievements(setAchievements);
+      setIsLoading(false);
+
       return () => {
-        unsubscribeDonations();
-        unsubscribeCampaigns();
         unsubscribeUsers();
-        unsubscribeBeneficiaries();
         unsubscribeEvents();
         unsubscribeTasks();
         unsubscribeAchievements();
       };
     }
 
+    if (role !== 'admin') {
+      setDonations([]);
+      setCampaigns([]);
+      setUsers([]);
+      setBeneficiaries([]);
+      setApprovals([]);
+      setEvents([]);
+      setTasks([]);
+      setAchievements([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribeDonations = subscribeToDonations(setDonations);
+    const unsubscribeCampaigns = subscribeToCampaigns(setCampaigns);
+    const unsubscribeUsers = subscribeToUsers(setUsers);
+    const unsubscribeBeneficiaries = subscribeToBeneficiaries(setBeneficiaries);
+    const unsubscribeApprovals = subscribeToCollection(
+      'approvals',
+      (items) => setApprovals(items as ApprovalRecord[]),
+      []
+    );
+    setIsLoading(false);
+
     return () => {
       unsubscribeDonations();
       unsubscribeCampaigns();
       unsubscribeUsers();
       unsubscribeBeneficiaries();
+      unsubscribeApprovals();
     };
   }, [role]);
 
@@ -137,8 +166,53 @@ export function DashboardPage() {
 
   // Admin/general data
   const totalDonations = useMemo(
-    () => donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0),
+    () => donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0),
     [donations]
+  );
+
+  const activeCampaignsCount = useMemo(
+    () => campaigns.filter((campaign) => campaign.status === 'active').length,
+    [campaigns]
+  );
+
+  const volunteerUsersCount = useMemo(
+    () => users.filter((user) => user.role === 'volunteer').length,
+    [users]
+  );
+
+  const pendingApprovalsCount = useMemo(
+    () => approvals.filter((approval) => approval.status === 'pending').length,
+    [approvals]
+  );
+
+  const summaryStats = useMemo(
+    () => [
+      {
+        key: `donations-${totalDonations}`,
+        icon: DollarSign,
+        title: 'Total Donations',
+        value: `₹${totalDonations.toLocaleString()}`,
+      },
+      {
+        key: `approvals-${pendingApprovalsCount}`,
+        icon: Clock,
+        title: 'Pending Approvals',
+        value: pendingApprovalsCount.toLocaleString(),
+      },
+      {
+        key: `beneficiaries-${beneficiaries.length}`,
+        icon: Heart,
+        title: 'Beneficiaries',
+        value: beneficiaries.length.toLocaleString(),
+      },
+      {
+        key: `campaigns-${campaigns.length}`,
+        icon: Calendar,
+        title: 'Campaigns',
+        value: campaigns.length.toLocaleString(),
+      },
+    ],
+    [beneficiaries.length, campaigns.length, pendingApprovalsCount, totalDonations]
   );
 
   const recentDonations = useMemo(
@@ -151,11 +225,12 @@ export function DashboardPage() {
 
   const insights = useMemo(
     () => [
-      `${campaigns.filter((campaign) => campaign.status === 'active').length} active campaigns live right now`,
-      `${users.filter((user) => user.role === 'volunteer').length} volunteers registered in the platform`,
+      `${activeCampaignsCount} active campaigns live right now`,
+      `${volunteerUsersCount} volunteers registered in the platform`,
+      `${pendingApprovalsCount} approvals waiting for review`,
       `${beneficiaries.length} beneficiaries currently tracked in Firebase`,
     ],
-    [beneficiaries.length, campaigns, users]
+    [activeCampaignsCount, beneficiaries.length, pendingApprovalsCount, volunteerUsersCount]
   );
 
   // Staff-controlled task completion handler
@@ -214,6 +289,18 @@ export function DashboardPage() {
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  if (role === 'donor') {
+    return <DonorDashboard />;
+  }
+
+  if (role === 'staff') {
+    return <StaffDashboard />;
+  }
+
+  if (role === 'beneficiary') {
+    return <BeneficiaryDashboard />;
+  }
+
   // If user is volunteer, show volunteer dashboard content
   if (role === 'volunteer') {
     const stats = [
@@ -267,7 +354,7 @@ export function DashboardPage() {
             const Icon = stat.icon;
             return (
               <motion.div
-                key={stat.label}
+                key={`${stat.label}-${stat.value}`}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: i * 0.05 }}
@@ -279,7 +366,7 @@ export function DashboardPage() {
                   <Icon className="w-6 h-6 text-white" />
                 </div>
                 <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold">{stat.value}</p>
+                <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
               </motion.div>
             );
           })}
@@ -482,10 +569,9 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={DollarSign} title="Total Donations" value={`₹${totalDonations.toLocaleString()}`} />
-        <StatCard icon={Users} title="Users" value={users.length.toLocaleString()} />
-        <StatCard icon={Heart} title="Beneficiaries" value={beneficiaries.length.toLocaleString()} />
-        <StatCard icon={Calendar} title="Campaigns" value={campaigns.length.toLocaleString()} />
+        {summaryStats.map((stat) => (
+          <StatCard key={stat.key} icon={stat.icon} title={stat.title} value={stat.value} />
+        ))}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -503,7 +589,7 @@ export function DashboardPage() {
                   <div className="flex-1">
                     <p className="text-sm">
                       <span className="font-medium">{activity.userName || activity.userEmail || 'Anonymous donor'}</span>{' '}
-                      donated <span className="font-semibold text-primary">₹{Number(activity.amount || 0).toLocaleString()}</span>
+                      donated <span className="font-semibold text-primary">₹{toCurrencyNumber(activity.amount).toLocaleString()}</span>
                     </p>
                     <p className="text-xs text-muted-foreground">{activity.date}</p>
                   </div>

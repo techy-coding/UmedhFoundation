@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Trash2, TrendingUp, Target, Calendar, Search, Filter, Eye, Edit } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +25,57 @@ export function CampaignsPage() {
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const campaignStats = useMemo(
+    () =>
+      isLoading
+        ? [
+            {
+              label: 'Active Campaigns',
+              value: 'Loading...',
+              icon: TrendingUp,
+              iconClassName: 'text-green-600',
+              iconBgClassName: 'bg-green-500/10',
+            },
+            {
+              label: 'Total Raised',
+              value: 'Loading...',
+              icon: Target,
+              iconClassName: 'text-blue-600',
+              iconBgClassName: 'bg-blue-500/10',
+            },
+            {
+              label: 'Completed',
+              value: 'Loading...',
+              icon: Calendar,
+              iconClassName: 'text-purple-600',
+              iconBgClassName: 'bg-purple-500/10',
+            },
+          ]
+        : [
+            {
+              label: 'Active Campaigns',
+              value: campaigns.filter((campaign) => campaign.status === 'active').length.toLocaleString(),
+              icon: TrendingUp,
+              iconClassName: 'text-green-600',
+              iconBgClassName: 'bg-green-500/10',
+            },
+            {
+              label: 'Total Raised',
+              value: `₹${campaigns.reduce((sum, campaign) => sum + campaign.raised, 0).toLocaleString()}`,
+              icon: Target,
+              iconClassName: 'text-blue-600',
+              iconBgClassName: 'bg-blue-500/10',
+            },
+            {
+              label: 'Completed',
+              value: campaigns.filter((campaign) => campaign.status === 'completed').length.toLocaleString(),
+              icon: Calendar,
+              iconClassName: 'text-purple-600',
+              iconBgClassName: 'bg-purple-500/10',
+            },
+          ],
+    [campaigns, isLoading]
+  );
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -184,43 +235,22 @@ export function CampaignsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
+        {campaignStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={`${stat.label}-${stat.value}`} className="bg-card border border-border rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-12 h-12 rounded-xl ${stat.iconBgClassName} flex items-center justify-center`}>
+                  <Icon className={`w-6 h-6 ${stat.iconClassName}`} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <p key={stat.value} className="text-2xl font-bold">{stat.value}</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Active Campaigns</p>
-              <p className="text-2xl font-bold">{campaigns.filter((c) => c.status === 'active').length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-              <Target className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Raised</p>
-              <p className="text-2xl font-bold">
-                ₹{campaigns.reduce((sum, c) => sum + c.raised, 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold">{campaigns.filter((c) => c.status === 'completed').length}</p>
-            </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">

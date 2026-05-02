@@ -6,6 +6,7 @@ import { useRole } from '../../context/RoleContext';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { subscribeToDonations, type Donation } from '../../services/donations';
 import { downloadPdf } from '../../utils/download';
+import { toCurrencyNumber } from '../../utils/currency';
 
 interface Receipt {
   id: number;
@@ -34,28 +35,10 @@ export function ReportsPage() {
 
     const unsubscribe = subscribeToDonations(
       (items) => {
-        setDonations(items);
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error('Failed to load donations from Firebase:', error);
-        toast.error('Could not load donations from Firebase.');
-        setIsLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
-    const unsubscribe = subscribeToDonations(
-      (items) => {
-        setDonations(items.filter((item) => item.userEmail === userEmail));
+        const normalizedEmail = userEmail.trim().toLowerCase();
+        setDonations(
+          items.filter((item) => item.userEmail?.trim().toLowerCase() === normalizedEmail)
+        );
         setIsLoading(false);
       },
       (error) => {
@@ -78,7 +61,7 @@ export function ReportsPage() {
           : donation.category === 'shelter' || donation.category === 'food'
             ? 'item'
             : 'donation',
-        amount: parseInt(donation.amount || '0', 10),
+        amount: toCurrencyNumber(donation.amount),
         campaign: donation.campaign || donation.category || 'General Donation',
         paymentMethod: (donation.paymentMethod || 'online').toUpperCase(),
         transactionId: donation.id,
@@ -112,6 +95,16 @@ export function ReportsPage() {
       transactions: yearlyReceipts.length,
     };
   }, [receipts, selectedYear]);
+
+  const reportStats = useMemo(
+    () => [
+      { label: 'Total Donations', value: `₹${(taxSummary.totalDonations / 1000).toFixed(1)}K`, color: 'from-[#FF6B35] to-[#FF8B35]' },
+      { label: 'Tax Deductible', value: `₹${(taxSummary.taxDeductible / 1000).toFixed(1)}K`, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
+      { label: 'Estimated Tax Saving', value: `₹${(taxSummary.estimatedTaxSaving / 1000).toFixed(1)}K`, color: 'from-[#FFD93D] to-[#FFE93D]' },
+      { label: 'Total Transactions', value: taxSummary.transactions.toLocaleString(), color: 'from-[#4ECDC4] to-[#6EDDC4]' },
+    ],
+    [taxSummary.estimatedTaxSaving, taxSummary.taxDeductible, taxSummary.totalDonations, taxSummary.transactions]
+  );
 
   const monthlyBreakdown = useMemo(() => {
     const monthMap = receipts
@@ -314,18 +307,13 @@ export function ReportsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {[
-          { label: 'Total Donations', value: `₹${(taxSummary.totalDonations / 1000).toFixed(1)}K`, color: 'from-[#FF6B35] to-[#FF8B35]' },
-          { label: 'Tax Deductible', value: `₹${(taxSummary.taxDeductible / 1000).toFixed(1)}K`, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
-          { label: 'Estimated Tax Saving', value: `₹${(taxSummary.estimatedTaxSaving / 1000).toFixed(1)}K`, color: 'from-[#FFD93D] to-[#FFE93D]' },
-          { label: 'Total Transactions', value: taxSummary.transactions, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-border bg-card p-6">
+        {reportStats.map((stat) => (
+          <div key={`${stat.label}-${stat.value}`} className="rounded-2xl border border-border bg-card p-6">
             <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${stat.color}`}>
               <FileText className="h-6 w-6 text-white" />
             </div>
             <p className="mb-1 text-sm text-muted-foreground">{stat.label}</p>
-            <p className="text-3xl font-bold">{stat.value}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
           </div>
         ))}
       </div>

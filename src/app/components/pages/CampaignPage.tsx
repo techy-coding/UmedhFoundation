@@ -51,6 +51,15 @@ export function CampaignPage() {
   }, []);
 
   const stats = useMemo(() => {
+    if (isLoading) {
+      return [
+        { label: 'Total Campaigns', value: 'Loading...', icon: Target },
+        { label: 'Active Campaigns', value: 'Loading...', icon: TrendingUp },
+        { label: 'Funds Raised', value: 'Loading...', icon: Calendar },
+        { label: 'Total Supporters', value: 'Loading...', icon: Users },
+      ];
+    }
+
     const totalRaised = campaigns.reduce((sum, campaign) => sum + campaign.raised, 0);
     const totalSupporters = campaigns.reduce((sum, campaign) => sum + campaign.supporters, 0);
     const activeCampaigns = campaigns.filter((campaign) => campaign.status === 'active').length;
@@ -61,7 +70,7 @@ export function CampaignPage() {
       { label: 'Funds Raised', value: `₹${totalRaised.toLocaleString()}`, icon: Calendar },
       { label: 'Total Supporters', value: totalSupporters.toLocaleString(), icon: Users },
     ];
-  }, [campaigns]);
+  }, [campaigns, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +220,7 @@ export function CampaignPage() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={stat.label}
+              key={`${stat.label}-${stat.value}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
@@ -223,7 +232,7 @@ export function CampaignPage() {
                 </div>
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold">{stat.value}</p>
+              <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
             </motion.div>
           );
         })}

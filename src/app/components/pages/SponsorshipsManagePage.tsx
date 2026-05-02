@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { AddSponsorshipForm, SponsorshipFormData } from '../forms/AddSponsorshipForm';
@@ -7,6 +7,7 @@ import { Plus, Heart, X, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { subscribeToSponsorships } from '../../services/sponsorships';
+import { toCurrencyNumber } from '../../utils/currency';
 
 interface Sponsorship {
   id: string;
@@ -78,6 +79,14 @@ export function SponsorshipsManagePage() {
     s.beneficiaryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     typeLabels[s.sponsorshipType].toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const sponsorshipStats = useMemo(
+    () => [
+      { label: 'Active Sponsorships', value: sponsorships.filter((s) => s.status === 'active').length.toLocaleString() },
+      { label: 'Monthly Commitment', value: `₹${sponsorships.reduce((sum, s) => sum + toCurrencyNumber(s.monthlyAmount), 0).toLocaleString()}` },
+      { label: 'Lives Impacted', value: sponsorships.length.toLocaleString() },
+    ],
+    [sponsorships]
+  );
 
   return (
     <div className="space-y-6">
@@ -98,20 +107,12 @@ export function SponsorshipsManagePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Active Sponsorships</p>
-          <p className="text-3xl font-bold">{sponsorships.filter(s => s.status === 'active').length}</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Monthly Commitment</p>
-          <p className="text-3xl font-bold">
-            ₹{sponsorships.reduce((sum, s) => sum + parseInt(s.monthlyAmount), 0).toLocaleString()}
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Lives Impacted</p>
-          <p className="text-3xl font-bold">{sponsorships.length}</p>
-        </div>
+        {sponsorshipStats.map((stat) => (
+          <div key={`${stat.label}-${stat.value}`} className="bg-card border border-border rounded-xl p-6">
+            <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
+          </div>
+        ))}
       </div>
 
       <div className="mb-6">
@@ -153,7 +154,7 @@ export function SponsorshipsManagePage() {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
               <div>
                 <p className="text-xs text-muted-foreground">Monthly Amount</p>
-                <p className="font-semibold">₹{parseInt(sponsorship.monthlyAmount).toLocaleString()}</p>
+                <p className="font-semibold">₹{toCurrencyNumber(sponsorship.monthlyAmount).toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Since</p>

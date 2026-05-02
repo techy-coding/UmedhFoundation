@@ -5,8 +5,17 @@ import { toast } from 'sonner';
 import { subscribeToUsers, updateUserStatus, type UserRecord } from '../../services/users';
 import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
 import { subscribeToDonations, type Donation } from '../../services/donations';
+import { subscribeToCollection } from '../../services/firebaseCrud';
 import { downloadPdf } from '../../utils/download';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { toCurrencyNumber } from '../../utils/currency';
+
+interface ApprovalRecord {
+  id: string;
+  title?: string;
+  requestedBy?: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
 
 export function AdminPage() {
   const [activeTab, setActiveTab] = useState<'users' | 'campaigns' | 'analytics'>('users');
@@ -14,10 +23,20 @@ export function AdminPage() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
 
   useEffect(() => subscribeToUsers(setUsers), []);
   useEffect(() => subscribeToCampaigns(setCampaigns), []);
   useEffect(() => subscribeToDonations(setDonations), []);
+  useEffect(
+    () =>
+      subscribeToCollection(
+        'approvals',
+        (items) => setApprovals(items as ApprovalRecord[]),
+        []
+      ),
+    []
+  );
 
   const filteredUsers = useMemo(
     () =>
@@ -29,12 +48,12 @@ export function AdminPage() {
   );
 
   const pendingApprovals = useMemo(
-    () => users.filter((user) => user.status === 'pending'),
-    [users]
+    () => approvals.filter((approval) => approval.status === 'pending'),
+    [approvals]
   );
 
   const analytics = useMemo(() => {
-    const totalRevenue = donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0);
+    const totalRevenue = donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0);
 
     return [
       { label: 'Total Users', value: users.length.toLocaleString() },
@@ -54,7 +73,7 @@ export function AdminPage() {
   );
 
   const totalRevenue = useMemo(
-    () => donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0),
+    () => donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0),
     [donations]
   );
 
@@ -140,7 +159,7 @@ export function AdminPage() {
               donation.id,
               donation.userName || donation.userEmail || 'Unknown',
               donation.campaign || donation.category || 'General',
-              `₹${Number(donation.amount || 0).toLocaleString()}`,
+              `₹${toCurrencyNumber(donation.amount).toLocaleString()}`,
               donation.date,
               donation.status,
             ]),
@@ -204,7 +223,7 @@ export function AdminPage() {
               donation.date,
               donation.userName || donation.userEmail || 'Unknown',
               donation.campaign || donation.category || 'General',
-              `₹${Number(donation.amount || 0).toLocaleString()}`,
+              `₹${toCurrencyNumber(donation.amount).toLocaleString()}`,
               donation.paymentMethod,
               donation.status,
             ]),
@@ -304,14 +323,14 @@ export function AdminPage() {
       <div className="grid lg:grid-cols-4 gap-6">
         {analytics.map((stat, i) => (
           <motion.div
-            key={stat.label}
+            key={`${stat.label}-${stat.value}`}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: i * 0.1 }}
             className="bg-card rounded-2xl p-6 border border-border"
           >
             <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-            <p className="text-3xl font-bold mb-2">{stat.value}</p>
+            <p key={stat.value} className="text-3xl font-bold mb-2">{stat.value}</p>
           </motion.div>
         ))}
       </div>

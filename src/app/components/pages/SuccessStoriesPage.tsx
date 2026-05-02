@@ -106,7 +106,7 @@ export function SuccessStoriesPage() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={stat.label}
+              key={`${stat.label}-${stat.value}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
@@ -115,7 +115,7 @@ export function SuccessStoriesPage() {
               <div className="w-12 h-12 bg-gradient-to-br from-[#FF6B35] to-[#6C5CE7] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Icon className="w-6 h-6 text-white" />
               </div>
-              <p className="text-3xl font-bold mb-1">{stat.value}</p>
+              <p key={stat.value} className="text-3xl font-bold mb-1">{stat.value}</p>
               <p className="text-sm text-muted-foreground">{stat.label}</p>
             </motion.div>
           );

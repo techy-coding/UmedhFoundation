@@ -88,12 +88,12 @@ export function BeneficiaryManagement() {
 
       <div className="grid lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
-          <motion.div key={stat.label} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-card rounded-2xl p-6 border border-border">
+          <motion.div key={`${stat.label}-${stat.value}`} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-card rounded-2xl p-6 border border-border">
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4`}>
               <Heart className="w-6 h-6 text-white" />
             </div>
             <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-            <p className="text-3xl font-bold">{stat.value}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
           </motion.div>
         ))}
       </div>

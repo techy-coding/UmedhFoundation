@@ -51,7 +51,7 @@ export function DonationPage() {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const [donationType, setDonationType] = useState<'one-time' | 'monthly'>('one-time');
-  const [amount, setAmount] = useState(500);
+  const [selectedAmount, setSelectedAmount] = useState(500);
   const [customAmount, setCustomAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'netbanking'>('netbanking');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -73,10 +73,10 @@ export function DonationPage() {
     });
   }, [searchParams]);
 
-  const currentAmount = useMemo(() => {
-    const parsed = customAmount ? parseInt(customAmount, 10) : amount;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  }, [amount, customAmount]);
+  const currentAmount = useMemo(
+    () => (Number.isFinite(selectedAmount) && selectedAmount > 0 ? selectedAmount : 0),
+    [selectedAmount]
+  );
 
   const selectedCampaignRecord = campaigns.find((campaign) => campaign.id === selectedCampaign);
   const canDonate = role === 'donor';
@@ -405,11 +405,11 @@ export function DonationPage() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
-                    setAmount(preset);
+                    setSelectedAmount(preset);
                     setCustomAmount('');
                   }}
                   className={`p-4 rounded-xl border-2 font-medium transition-all ${
-                    amount === preset && !customAmount
+                    selectedAmount === preset && !customAmount
                       ? 'border-primary bg-gradient-to-br from-[#FF6B35] to-[#6C5CE7] text-white'
                       : 'border-border hover:border-primary/50'
                   }`}
@@ -425,7 +425,13 @@ export function DonationPage() {
                 <input
                   type="number"
                   value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCustomAmount(value);
+
+                    const parsed = parseInt(value, 10);
+                    setSelectedAmount(Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
+                  }}
                   placeholder={t('donation.enter_custom_amount')}
                   className="w-full pl-8 pr-4 py-3 rounded-xl bg-muted/50 border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                 />

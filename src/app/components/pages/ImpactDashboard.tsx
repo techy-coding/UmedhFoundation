@@ -14,6 +14,7 @@ import {
 } from '../../services/beneficiaries';
 import { subscribeToCampaigns, type CampaignRecord } from '../../services/campaigns';
 import { downloadPdf } from '../../utils/download';
+import { toCurrencyNumber } from '../../utils/currency';
 
 export function ImpactDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
@@ -63,7 +64,7 @@ export function ImpactDashboard() {
     };
   }, []);
 
-  const totalFunds = useMemo(() => donations.reduce((sum, item) => sum + Number(item.amount || 0), 0), [donations]);
+  const totalFunds = useMemo(() => donations.reduce((sum, item) => sum + toCurrencyNumber(item.amount), 0), [donations]);
 
   const periodLabels = useMemo(() => {
     switch (selectedPeriod) {
@@ -134,7 +135,7 @@ export function ImpactDashboard() {
     const palette = ['#FF6B35', '#6C5CE7', '#FFD93D', '#4ECDC4', '#FF8B94'];
     const grouped = donations.reduce<Record<string, number>>((acc, item) => {
       const key = item.category || 'general';
-      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      acc[key] = (acc[key] || 0) + toCurrencyNumber(item.amount);
       return acc;
     }, {});
     const total = Object.values(grouped).reduce((sum, amount) => sum + amount, 0);
@@ -361,6 +362,16 @@ export function ImpactDashboard() {
     });
   };
 
+  const impactSummaryStats = useMemo(
+    () => [
+      { label: 'Lives Impacted', value: beneficiaries.length.toString(), change: 'Live records', icon: Heart, color: 'from-[#FF6B35] to-[#FF8B35]' },
+      { label: 'Meals Served', value: Math.floor(totalFunds / 100).toString(), change: 'Estimated from donations', icon: TrendingUp, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
+      { label: 'Children Educated', value: beneficiaries.filter((b) => b.education).length.toString(), change: 'Education records', icon: Users, color: 'from-[#FFD93D] to-[#FFE93D]' },
+      { label: 'Partner Homes', value: regionalImpact.length.toString(), change: 'Derived from addresses', icon: MapPin, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
+    ],
+    [beneficiaries, regionalImpact.length, totalFunds]
+  );
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -382,21 +393,16 @@ export function ImpactDashboard() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        {[
-          { label: 'Lives Impacted', value: beneficiaries.length.toString(), change: 'Live records', icon: Heart, color: 'from-[#FF6B35] to-[#FF8B35]' },
-          { label: 'Meals Served', value: Math.floor(totalFunds / 100).toString(), change: 'Estimated from donations', icon: TrendingUp, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
-          { label: 'Children Educated', value: beneficiaries.filter((b) => b.education).length.toString(), change: 'Education records', icon: Users, color: 'from-[#FFD93D] to-[#FFE93D]' },
-          { label: 'Partner Homes', value: regionalImpact.length.toString(), change: 'Derived from addresses', icon: MapPin, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
-        ].map((stat, i) => {
+        {impactSummaryStats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <motion.div key={stat.label} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
+            <motion.div key={`${stat.label}-${stat.value}-${stat.change}`} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl p-6 border border-border">
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4`}>
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold mb-2">{stat.value}</p>
-              <span className="text-sm text-green-500">{stat.change}</span>
+              <p key={stat.value} className="text-3xl font-bold mb-2">{stat.value}</p>
+              <span key={stat.change} className="text-sm text-green-500">{stat.change}</span>
             </motion.div>
           );
         })}

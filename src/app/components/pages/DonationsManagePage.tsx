@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { PaymentModal } from '../common/PaymentModal';
 import { AddDonationForm, DonationFormData } from '../forms/AddDonationForm';
@@ -8,6 +8,7 @@ import { Download, Heart, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { createDonation, fallbackDonations, subscribeToDonations, type Donation } from '../../services/donations';
+import { toCurrencyNumber } from '../../utils/currency';
 
 export function DonationsManagePage() {
   const [donations, setDonations] = useState<Donation[]>(fallbackDonations);
@@ -37,26 +38,6 @@ export function DonationsManagePage() {
   }, []);
   const [pendingDonation, setPendingDonation] = useState<DonationFormData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      return;
-    }
-
-    const unsubscribe = subscribeToDonations(
-      (nextDonations) => {
-        setDonations(nextDonations);
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error('Failed to load donations from Firebase:', error);
-        toast.error('Could not load donations from Firebase.');
-        setIsLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, []);
 
   const handleSubmit = (data: DonationFormData) => {
     setPendingDonation(data);
@@ -110,6 +91,19 @@ export function DonationsManagePage() {
     new Date(d.date).toLocaleDateString().includes(searchQuery)
   );
 
+  const donationStats = useMemo(() => {
+    const totalDonated = donations.reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0);
+    const taxEligible = donations
+      .filter((donation) => donation.tax80G)
+      .reduce((sum, donation) => sum + toCurrencyNumber(donation.amount), 0);
+
+    return [
+      { label: 'Total Donated', value: `₹${totalDonated.toLocaleString()}` },
+      { label: 'Total Donations', value: donations.length.toLocaleString() },
+      { label: 'Tax Saved (80G)', value: `₹${Math.floor(taxEligible * 0.5).toLocaleString()}` },
+    ];
+  }, [donations]);
+
   const categoryLabels: Record<string, string> = {
     general: 'General Fund',
     education: 'Education',
@@ -138,22 +132,12 @@ export function DonationsManagePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Total Donated</p>
-          <p className="text-3xl font-bold">
-            ₹{donations.reduce((sum, d) => sum + parseInt(d.amount), 0).toLocaleString()}
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Total Donations</p>
-          <p className="text-3xl font-bold">{donations.length}</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-6">
-          <p className="text-sm text-muted-foreground mb-1">Tax Saved (80G)</p>
-          <p className="text-3xl font-bold">
-            ₹{Math.floor(donations.filter(d => d.tax80G).reduce((sum, d) => sum + parseInt(d.amount), 0) * 0.5).toLocaleString()}
-          </p>
-        </div>
+        {donationStats.map((stat) => (
+          <div key={`${stat.label}-${stat.value}`} className="bg-card border border-border rounded-xl p-6">
+            <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
+            <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
+          </div>
+        ))}
       </div>
 
       <div className="bg-card border border-border rounded-2xl p-6">
@@ -193,7 +177,7 @@ export function DonationsManagePage() {
                     {new Date(donation.date).toLocaleDateString()}
                   </td>
                   <td className="py-3 px-4 font-semibold">
-                    ₹{parseInt(donation.amount).toLocaleString()}
+                    ₹{toCurrencyNumber(donation.amount).toLocaleString()}
                   </td>
                   <td className="py-3 px-4">
                     <span className="px-3 py-1 rounded-full bg-secondary/10 text-secondary text-xs">

@@ -27,7 +27,7 @@ export function BeneficiaryDashboard() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={i}
+              key={`${stat.label}-${stat.value}-${stat.change}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
@@ -37,8 +37,8 @@ export function BeneficiaryDashboard() {
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold mb-2">{stat.value}</p>
-              <span className="text-sm text-muted-foreground">{stat.change}</span>
+              <p key={stat.value} className="text-3xl font-bold mb-2">{stat.value}</p>
+              <span key={stat.change} className="text-sm text-muted-foreground">{stat.change}</span>
             </motion.div>
           );
         })}
