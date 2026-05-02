@@ -37,6 +37,26 @@ export function AchievementsPage() {
     [myAchievements]
   );
 
+  const achievedCompletedTaskCount = useMemo(() => {
+    if (completedTasks.length === 0) {
+      return 0;
+    }
+
+    const achievementTaskIds = new Set(
+      myAchievements.map((achievement) => achievement.taskId).filter(Boolean)
+    );
+
+    return completedTasks.filter((task) => achievementTaskIds.has(task.id)).length;
+  }, [completedTasks, myAchievements]);
+
+  const achievementRate = useMemo(
+    () =>
+      completedTasks.length > 0
+        ? Math.round((achievedCompletedTaskCount / completedTasks.length) * 100)
+        : 0,
+    [achievedCompletedTaskCount, completedTasks.length]
+  );
+
   const recentAchievements = useMemo(
     () => [...myAchievements].sort((a, b) => new Date(b.earnedDate).getTime() - new Date(a.earnedDate).getTime()).slice(0, 6),
     [myAchievements]
@@ -63,7 +83,7 @@ export function AchievementsPage() {
     },
     {
       label: 'Achievement Rate',
-      value: `${completedTasks.length > 0 ? Math.round((myAchievements.length / completedTasks.length) * 100) : 0}%`,
+      value: `${achievementRate}%`,
       icon: Award,
       color: 'from-[#4ECDC4] to-[#6EDDC4]',
     },
@@ -108,7 +128,7 @@ export function AchievementsPage() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={stat.label}
+              key={`${stat.label}-${stat.value}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.05 }}
@@ -120,7 +140,7 @@ export function AchievementsPage() {
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold">{stat.value}</p>
+              <p key={stat.value} className="text-3xl font-bold">{stat.value}</p>
             </motion.div>
           );
         })}
@@ -230,9 +250,7 @@ export function AchievementsPage() {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Achievement Rate</span>
-                <span className="font-medium">
-                  {completedTasks.length > 0 ? Math.round((myAchievements.length / completedTasks.length) * 100) : 0}%
-                </span>
+                <span className="font-medium">{achievementRate}%</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Total Points</span>

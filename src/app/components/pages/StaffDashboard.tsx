@@ -1,11 +1,12 @@
 import { motion } from 'motion/react';
-import { Users, AlertCircle, TrendingUp, FileText, Plus } from 'lucide-react';
+import { Users, AlertCircle, TrendingUp, FileText } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { subscribeToBeneficiaries } from '../../services/beneficiaries';
 import { subscribeToNeeds } from '../../services/wishlist';
 import { subscribeToDonations } from '../../services/donations';
+import { toCurrencyNumber } from '../../utils/currency';
 
 export function StaffDashboard() {
   const [beneficiaries, setBeneficiaries] = useState<any[]>([]);
@@ -50,6 +51,24 @@ export function StaffDashboard() {
     };
   }, []);
 
+  const activeNeeds = useMemo(
+    () =>
+      needs.filter((need) => {
+        const quantity = Number(need.quantity) || 0;
+        const fulfilled = Number(need.fulfilledQuantity) || 0;
+        return quantity > fulfilled;
+      }),
+    [needs]
+  );
+
+  const urgentActiveNeeds = useMemo(
+    () =>
+      activeNeeds.filter(
+        (need) => need.priority === 'high' || need.priority === 'urgent'
+      ),
+    [activeNeeds]
+  );
+
   const stats = useMemo(() => [
     { 
       label: 'Total Beneficiaries', 
@@ -60,15 +79,15 @@ export function StaffDashboard() {
     },
     { 
       label: 'Active Needs', 
-      value: needs.filter(n => n.status === 'pending').length.toString(), 
-      change: needs.filter(n => n.priority === 'high').length > 0 ? `${needs.filter(n => n.priority === 'high').length} urgent` : 'Nothing urgent', 
+      value: activeNeeds.length.toString(), 
+      change: urgentActiveNeeds.length > 0 ? `${urgentActiveNeeds.length} urgent` : 'Nothing urgent', 
       icon: AlertCircle, 
       color: 'from-[#FF6B35] to-[#FF8B35]', 
-      urgent: needs.filter(n => n.priority === 'high').length > 0 
+      urgent: urgentActiveNeeds.length > 0 
     },
     { 
       label: 'Donations Received', 
-      value: `₹${donations.reduce((sum, d) => sum + (Number(d.amount) || 0), 0).toLocaleString()}`, 
+      value: `₹${donations.reduce((sum, d) => sum + toCurrencyNumber(d.amount), 0).toLocaleString()}`,
       change: donations.length > 0 ? `${donations.length} donations` : 'No donations yet', 
       icon: TrendingUp, 
       color: 'from-[#6C5CE7] to-[#8C7CE7]' 
@@ -80,10 +99,10 @@ export function StaffDashboard() {
       icon: FileText, 
       color: 'from-[#FFD93D] to-[#FFE93D]' 
     },
-  ], [beneficiaries, needs, donations]);
+  ], [beneficiaries, activeNeeds, urgentActiveNeeds, donations]);
 
   const urgentNeeds = useMemo(() => 
-    needs.filter(n => n.priority === 'high' && n.status === 'pending').slice(0, 5)
+    urgentActiveNeeds.slice(0, 5)
       .map((need, index) => ({
         id: index + 1,
         item: need.item,
@@ -92,7 +111,7 @@ export function StaffDashboard() {
         urgency: need.priority,
         location: need.beneficiaryName || 'Unknown'
       }))
-  , [needs]);
+  , [urgentActiveNeeds]);
 
   const recentBeneficiaries = useMemo(() => 
     beneficiaries.slice(0, 5).map((b, index) => ({
@@ -111,7 +130,8 @@ export function StaffDashboard() {
       const categoryNeeds = needs.filter(n => n.category === category);
       const total = categoryNeeds.reduce((sum, n) => sum + (Number(n.quantity) || 0), 0);
       const fulfilled = categoryNeeds.reduce((sum, n) => sum + (Number(n.fulfilledQuantity) || 0), 0);
-      return { category, total, fulfilled };
+      const percentage = total > 0 ? Math.round((fulfilled / total) * 100) : 0;
+      return { category, total, fulfilled, percentage };
     });
   }, [needs]);
 
@@ -122,24 +142,6 @@ export function StaffDashboard() {
           <h1 className="text-3xl font-heading font-bold mb-2">Staff Dashboard</h1>
           <p className="text-muted-foreground">Manage beneficiaries and needs</p>
         </div>
-        <div className="flex gap-3">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-6 py-3 border border-primary text-primary rounded-xl font-medium flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Need
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-6 py-3 bg-gradient-to-r from-[#FF6B35] to-[#6C5CE7] text-white rounded-xl font-medium flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Beneficiary
-          </motion.button>
-        </div>
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
@@ -147,7 +149,7 @@ export function StaffDashboard() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={i}
+              key={`${stat.label}-${stat.value}-${stat.change}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
@@ -160,8 +162,8 @@ export function StaffDashboard() {
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold mb-2">{stat.value}</p>
-              <span className="text-sm text-muted-foreground">{stat.change}</span>
+              <p key={stat.value} className="text-3xl font-bold mb-2">{stat.value}</p>
+              <span key={stat.change} className="text-sm text-muted-foreground">{stat.change}</span>
             </motion.div>
           );
         })}
@@ -225,13 +227,13 @@ export function StaffDashboard() {
           <div className="space-y-4">
             {needsProgress.length === 0 && <div className="text-sm text-muted-foreground">No needs progress data yet.</div>}
             {needsProgress.map((item, i) => {
-              const progress = (item.fulfilled / item.total) * 100;
+              const progress = item.percentage;
               return (
                 <div key={i}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">{item.category}</span>
                     <span className="text-sm text-muted-foreground">
-                      {item.fulfilled}/{item.total} ({Math.round(progress)}%)
+                      {item.fulfilled}/{item.total} ({progress}%)
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">

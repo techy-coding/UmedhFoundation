@@ -2,70 +2,173 @@ import { motion } from 'motion/react';
 import { Heart, TrendingUp, Gift, Users, Calendar, Download } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { useRole } from '../../context/RoleContext';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { fallbackDonations, subscribeToDonations, type Donation } from '../../services/donations';
+import {
+  fallbackSponsorships,
+  subscribeToSponsorships,
+  type SponsorshipRecord,
+} from '../../services/sponsorships';
 import { useNavigate } from 'react-router-dom';
+import { toCurrencyNumber } from '../../utils/currency';
+import { downloadPdf } from '../../utils/download';
+
+function isDonationForUser(donation: Donation, userEmail: string) {
+  return donation.userEmail?.trim().toLowerCase() === userEmail.trim().toLowerCase();
+}
+
+function isSponsorshipForUser(sponsorship: SponsorshipRecord, userEmail: string) {
+  return sponsorship.donorEmail?.trim().toLowerCase() === userEmail.trim().toLowerCase();
+}
 
 export function DonorDashboard() {
   const navigate = useNavigate();
   const { userName, userEmail } = useRole();
   const [donations, setDonations] = useState<Donation[]>(
-    fallbackDonations.filter((item) => item.userEmail === userEmail)
+    fallbackDonations.filter((item) => isDonationForUser(item, userEmail))
+  );
+  const [sponsorships, setSponsorships] = useState<SponsorshipRecord[]>(
+    fallbackSponsorships.filter((item) => isSponsorshipForUser(item, userEmail))
   );
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      setDonations(fallbackDonations.filter((item) => item.userEmail === userEmail));
+      setDonations(fallbackDonations.filter((item) => isDonationForUser(item, userEmail)));
+      setSponsorships(fallbackSponsorships.filter((item) => isSponsorshipForUser(item, userEmail)));
       return;
     }
 
-    const unsubscribe = subscribeToDonations((items) => {
-      const userDonations = items.filter((item) => item.userEmail === userEmail);
+    const unsubscribeDonations = subscribeToDonations((items) => {
+      const userDonations = items.filter((item) => isDonationForUser(item, userEmail));
       setDonations(userDonations);
     });
+    const unsubscribeSponsorships = subscribeToSponsorships((items) => {
+      const userSponsorships = items.filter((item) => isSponsorshipForUser(item, userEmail));
+      setSponsorships(userSponsorships);
+    });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeDonations();
+      unsubscribeSponsorships();
+    };
   }, [userEmail]);
 
-  const totalDonated = donations.reduce((sum, donation) => sum + parseInt(donation.amount || '0', 10), 0);
-  const recurringDonations = donations.filter((donation) => donation.isRecurring).length;
-  const wishlistItemsSupported = donations.filter((donation) => donation.category === 'shelter' || donation.category === 'food').length;
-  const impactScore = donations.length === 0 ? 0 : Math.min(100, 60 + donations.length * 8);
-
-  const stats = [
-    { label: 'Total Donations', value: `₹${totalDonated.toLocaleString()}`, change: `${donations.length} records`, icon: Heart, color: 'from-[#FF6B35] to-[#FF8B35]' },
-    { label: 'Active Sponsorships', value: `${recurringDonations}`, change: recurringDonations > 0 ? 'Ongoing' : 'None yet', icon: Users, color: 'from-[#6C5CE7] to-[#8C7CE7]' },
-    { label: 'Wishlist Items', value: `${wishlistItemsSupported}`, change: wishlistItemsSupported > 0 ? 'Supported by you' : 'No support yet', icon: Gift, color: 'from-[#FFD93D] to-[#FFE93D]' },
-    { label: 'Impact Score', value: `${impactScore}%`, change: donations.length > 0 ? 'Based on your giving' : 'Start donating', icon: TrendingUp, color: 'from-[#4ECDC4] to-[#6EDDC4]' },
-  ];
-
-  const recentDonations = useMemo(
+  const normalizedDonations = useMemo(
     () =>
       [...donations]
         .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
-        .slice(0, 5)
         .map((donation) => ({
           id: donation.id,
           date: donation.date,
           campaign: donation.campaign || donation.category,
-          amount: parseInt(donation.amount || '0', 10),
+          amount: toCurrencyNumber(donation.amount),
           status: donation.status,
+          paymentMethod: donation.paymentMethod || donation.paymentGateway || 'RAZORPAY',
+          transactionId: donation.paymentId || donation.paymentOrderId || donation.id,
+          taxBenefit: donation.tax80G,
+          type: donation.campaign ? 'sponsorship' : 'donation',
         })),
     [donations]
   );
 
+  const recentDonations = useMemo(() => normalizedDonations.slice(0, 5), [normalizedDonations]);
+
+  const donationTotal = useMemo(
+    () => normalizedDonations.reduce((sum, donation) => sum + donation.amount, 0),
+    [normalizedDonations]
+  );
+
+  const activeSponsorships = useMemo(
+    () => sponsorships.filter((sponsorship) => sponsorship.status === 'active').length,
+    [sponsorships]
+  );
+
+  const sponsorshipTotal = useMemo(
+    () =>
+      sponsorships.reduce(
+        (sum, sponsorship) => sum + toCurrencyNumber(sponsorship.totalDonated),
+        0
+      ),
+    [sponsorships]
+  );
+
+  const totalDonated = useMemo(
+    () => donationTotal + sponsorshipTotal,
+    [donationTotal, sponsorshipTotal]
+  );
+
+  const wishlistItemsSupported = useMemo(
+    () =>
+      donations.filter(
+        (donation) => donation.category === 'shelter' || donation.category === 'food'
+      ).length,
+    [donations]
+  );
+
+  const totalGivingRecords = normalizedDonations.length + sponsorships.length;
+  const impactScore = totalGivingRecords === 0 ? 0 : Math.min(100, 60 + normalizedDonations.length * 8 + activeSponsorships * 20);
+
+  const stats = useMemo(
+    () => [
+      {
+        label: 'Total Donations',
+        value: `₹${totalDonated.toLocaleString()}`,
+        change: `${totalGivingRecords} records`,
+        icon: Heart,
+        color: 'from-[#FF6B35] to-[#FF8B35]',
+      },
+      {
+        label: 'Active Sponsorships',
+        value: `${activeSponsorships}`,
+        change: activeSponsorships > 0 ? `₹${sponsorshipTotal.toLocaleString()} contributed` : 'None yet',
+        icon: Users,
+        color: 'from-[#6C5CE7] to-[#8C7CE7]',
+      },
+      {
+        label: 'Wishlist Items',
+        value: `${wishlistItemsSupported}`,
+        change: wishlistItemsSupported > 0 ? 'Supported by you' : 'No support yet',
+        icon: Gift,
+        color: 'from-[#FFD93D] to-[#FFE93D]',
+      },
+      {
+        label: 'Impact Score',
+        value: `${impactScore}%`,
+        change: totalGivingRecords > 0 ? 'Based on your giving' : 'Start donating',
+        icon: TrendingUp,
+        color: 'from-[#4ECDC4] to-[#6EDDC4]',
+      },
+    ],
+    [activeSponsorships, impactScore, sponsorshipTotal, totalDonated, totalGivingRecords, wishlistItemsSupported]
+  );
+
   const monthlyTrend = useMemo(() => {
-    const monthMap = new Map<string, number>();
+    const monthMap = new Map<string, { amount: number; date: Date }>();
 
     donations.forEach((donation) => {
       const date = new Date(donation.date);
-      const month = date.toLocaleString('en-US', { month: 'short' });
-      const amount = parseInt(donation.amount || '0', 10);
-      monthMap.set(month, (monthMap.get(month) || 0) + amount);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const amount = toCurrencyNumber(donation.amount);
+      const existing = monthMap.get(monthKey);
+
+      monthMap.set(monthKey, {
+        amount: (existing?.amount || 0) + amount,
+        date: existing?.date || new Date(date.getFullYear(), date.getMonth(), 1),
+      });
     });
 
-    return Array.from(monthMap.entries()).map(([month, amount]) => ({ month, amount }));
+    return Array.from(monthMap.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map(({ amount, date }) => ({
+        month: date.toLocaleString('en-US', { month: 'short' }),
+        amount,
+      }));
   }, [donations]);
 
   const impactData = useMemo(() => {
@@ -78,6 +181,40 @@ export function DonorDashboard() {
 
     return Array.from(categoryMap.entries()).map(([category, children]) => ({ category, children }));
   }, [donations]);
+
+  const downloadReceipt = (donation: (typeof normalizedDonations)[number]) => {
+    downloadPdf({
+      filename: `receipt-${donation.transactionId}.pdf`,
+      title: 'Umedh Foundation Donation Receipt',
+      subtitle: 'Tax Receipt Under Section 80G of Income Tax Act',
+      lines: [
+        `Donor Name: ${userName || 'Supporter'}`,
+        `Email: ${userEmail}`,
+        `Receipt Date: ${donation.date}`,
+        `80G Eligible: ${donation.taxBenefit ? 'Yes - Tax Deductible' : 'No'}`,
+        '',
+        'Thank you for your generous contribution to Umedh Foundation.',
+        'Your support helps us continue our mission of serving the community.',
+      ],
+      sections: [
+        {
+          heading: 'Donation Details',
+          isTable: true,
+          rows: [
+            ['Description', 'Details'],
+            ['Campaign', donation.campaign],
+            ['Donation Type', donation.type],
+            ['Amount', `INR ${donation.amount.toLocaleString()}`],
+            ['Payment Method', donation.paymentMethod],
+            ['Transaction ID', donation.transactionId],
+            ['Date', donation.date],
+          ],
+        },
+      ],
+    });
+
+    toast.success('Receipt downloaded successfully.');
+  };
 
   return (
     <div className="space-y-6">
@@ -102,7 +239,7 @@ export function DonorDashboard() {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={i}
+              key={`${stat.label}-${stat.value}-${stat.change}`}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
@@ -112,8 +249,8 @@ export function DonorDashboard() {
                 <Icon className="w-6 h-6 text-white" />
               </div>
               <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold mb-2">{stat.value}</p>
-              <span className="text-sm text-green-500">{stat.change}</span>
+              <p key={stat.value} className="text-3xl font-bold mb-2">{stat.value}</p>
+              <span key={stat.change} className="text-sm text-green-500">{stat.change}</span>
             </motion.div>
           );
         })}
@@ -222,7 +359,10 @@ export function DonorDashboard() {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <button className="text-primary hover:underline flex items-center gap-1 ml-auto">
+                      <button
+                        onClick={() => downloadReceipt(donation)}
+                        className="text-primary hover:underline flex items-center gap-1 ml-auto"
+                      >
                         <Download className="w-4 h-4" />
                         Download
                       </button>
